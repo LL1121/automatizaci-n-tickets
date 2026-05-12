@@ -1,7 +1,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json package-lock.json ./
+# npm ci falla si el lock fue generado con otra versión de npm (p.ej. picomatch hoisted).
+# npm install respeta el lockfile pero reconcilia el árbol como en un clone limpio.
+RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
