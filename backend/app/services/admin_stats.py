@@ -158,6 +158,9 @@ def count_tickets_filtered(
         is_verified=is_verified,
     ).subquery()
     return select(func.count()).select_from(base)
+
+
+def tickets_for_export(
     db: Session,
     period: MonthPeriod,
 ) -> list[dict[str, Any]]:
