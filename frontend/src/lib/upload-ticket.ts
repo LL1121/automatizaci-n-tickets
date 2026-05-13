@@ -11,13 +11,16 @@ export class UploadHttpError extends Error {
   }
 }
 
-export function isLikelyNetworkError(error: unknown): boolean {
-  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
-  if (error instanceof TypeError) {
-    const m = error.message.toLowerCase();
-    if (m.includes("fetch") || m.includes("network") || m.includes("failed")) return true;
-  }
-  return false;
+/**
+ * Fallo definitivo del cliente (no reintentar cola): 4xx salvo los que suelen ser transitorios.
+ * No usar heurísticas tipo TypeError + "fetch": en Chrome "Failed to fetch" también es CORS/SSL/502.
+ */
+export function isPermanentUploadFailure(error: unknown): boolean {
+  if (!(error instanceof UploadHttpError)) return false;
+  const s = error.status;
+  if (s >= 500) return false;
+  if (s === 408 || s === 429) return false;
+  return s >= 400;
 }
 
 export async function uploadTicketFile(

@@ -8,7 +8,12 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 type Props = {
   vehicleId: number;
   patente: string;
-  onResult: (r: { mode: "synced" } | { mode: "queued" } | { mode: "error"; message: string }) => void;
+  onResult: (
+    r:
+      | { mode: "synced" }
+      | { mode: "queued"; navigatorOffline: boolean }
+      | { mode: "error"; message: string },
+  ) => void;
 };
 
 export function CameraCapture({ vehicleId, patente, onResult }: Props) {
@@ -118,7 +123,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
       if (outcome.mode === "synced") {
         onResult({ mode: "synced" });
       } else {
-        onResult({ mode: "queued" });
+        onResult({ mode: "queued", navigatorOffline: outcome.navigatorOffline });
       }
     } catch (e) {
       if (e instanceof UploadHttpError) {

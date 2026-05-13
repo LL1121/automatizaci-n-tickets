@@ -1,4 +1,4 @@
-import { uploadTicketFile, isLikelyNetworkError, UploadHttpError } from "@/lib/upload-ticket";
+import { uploadTicketFile, isPermanentUploadFailure, UploadHttpError } from "@/lib/upload-ticket";
 import {
   deletePendingTicket,
   getAllPendingTickets,
@@ -33,10 +33,10 @@ export async function flushPendingTickets(): Promise<FlushResult> {
       failed += 1;
       const msg = e instanceof UploadHttpError ? `${e.status}: ${e.message}` : String(e);
       errors.push(`${row.id}: ${msg}`);
-      if (isLikelyNetworkError(e)) {
-        await updatePendingTicket(row.id, { status: "pending", lastError: msg });
-      } else {
+      if (isPermanentUploadFailure(e)) {
         await updatePendingTicket(row.id, { status: "failed", lastError: msg });
+      } else {
+        await updatePendingTicket(row.id, { status: "pending", lastError: msg });
       }
     }
   }
@@ -47,7 +47,7 @@ export async function flushPendingTickets(): Promise<FlushResult> {
 export async function persistAndTryUpload(
   file: File,
   vehicleId: number,
-): Promise<{ mode: "synced" } | { mode: "queued" }> {
+): Promise<{ mode: "synced" } | { mode: "queued"; navigatorOffline: boolean }> {
   const id = crypto.randomUUID();
   const imageBuffer = await file.arrayBuffer();
 
@@ -67,11 +67,13 @@ export async function persistAndTryUpload(
     await deletePendingTicket(id);
     return { mode: "synced" };
   } catch (e) {
-    if (isLikelyNetworkError(e)) {
-      await updatePendingTicket(id, { status: "pending", lastError: String(e) });
-      return { mode: "queued" };
+    if (isPermanentUploadFailure(e)) {
+      await deletePendingTicket(id);
+      throw e;
     }
-    await deletePendingTicket(id);
-    throw e;
+    await updatePendingTicket(id, { status: "pending", lastError: String(e) });
+    const navigatorOffline =
+      typeof navigator !== "undefined" && !navigator.onLine;
+    return { mode: "queued", navigatorOffline };
   }
 }

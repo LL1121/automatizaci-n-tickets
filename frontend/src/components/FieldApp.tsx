@@ -15,7 +15,7 @@ type Step = "auth" | "vehicle" | "camera" | "feedback";
 
 type FeedbackState =
   | { step: "feedback"; variant: "synced" }
-  | { step: "feedback"; variant: "offline"; detail?: string }
+  | { step: "feedback"; variant: "offline"; navigatorOffline: boolean }
   | { step: "feedback"; variant: "error"; message: string };
 
 const pageTransition = {
@@ -90,11 +90,20 @@ export function FieldApp() {
     setStep("camera");
   };
 
-  const handleCaptureResult = (result: { mode: "synced" } | { mode: "queued" } | { mode: "error"; message: string }) => {
+  const handleCaptureResult = (
+    result:
+      | { mode: "synced" }
+      | { mode: "queued"; navigatorOffline: boolean }
+      | { mode: "error"; message: string },
+  ) => {
     if (result.mode === "synced") {
       setFeedback({ step: "feedback", variant: "synced" });
     } else if (result.mode === "queued") {
-      setFeedback({ step: "feedback", variant: "offline" });
+      setFeedback({
+        step: "feedback",
+        variant: "offline",
+        navigatorOffline: result.navigatorOffline,
+      });
     } else {
       setFeedback({ step: "feedback", variant: "error", message: result.message });
     }
@@ -200,7 +209,9 @@ export function FieldApp() {
               <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-6 text-center">
                 <p className="text-sm font-medium text-amber-200">Guardado en este dispositivo</p>
                 <p className="mt-2 text-sm text-zinc-400">
-                  No hay red ahora: el ticket quedó pendiente y se sube solo cuando vuelvas a estar en línea.
+                  {feedback.navigatorOffline
+                    ? "No hay red ahora: el ticket quedó pendiente y se sube solo cuando vuelvas a estar en línea."
+                    : "No pudimos llegar al servidor (API caído, CORS o red intermitente). El ticket quedó pendiente; se reintentará solo cuando el servidor responda bien."}
                 </p>
               </div>
             ) : null}
