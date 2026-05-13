@@ -44,7 +44,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api-tickets.irrigacionmalargue.net}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -58,4 +58,8 @@ volumes:
 
 networks:
   lyntrix_network:
+<<<<<<< HEAD
     external: true
+=======
+    external: true
+>>>>>>> 5fd44b8 (Fx: Docker compose)
