@@ -1,0 +1,19 @@
+# DNS (mismo IP del servidor):
+#   tickets.irrigacionmalargue.net      → app Next.js (PWA + admin)
+#   api-tickets.irrigacionmalargue.net  → FastAPI
+#
+# Levantar también el proxy (TLS automático con Let's Encrypt):
+#   docker compose -f docker-compose.yml -f deploy/compose.caddy.yml up -d --build
+#
+# El frontend se debe construir con la URL pública del API (build-arg en compose):
+#   NEXT_PUBLIC_API_URL=https://api-tickets.irrigacionmalargue.net
+
+tickets.irrigacionmalargue.net {
+	encode gzip zstd
+	reverse_proxy frontend:3000
+}
+
+api-tickets.irrigacionmalargue.net {
+	encode gzip zstd
+	reverse_proxy api:8000
+}

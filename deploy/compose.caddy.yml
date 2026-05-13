@@ -1,0 +1,23 @@
+# Añadí Caddy con TLS automático. Uso desde la raíz del repo:
+#   docker compose -f docker-compose.yml -f deploy/compose.caddy.yml up -d --build
+#
+# Requisitos: DNS de ambos subdominios apuntando a este servidor; puertos 80/443 libres.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+
+volumes:
+  caddy_data:
+  caddy_config:
