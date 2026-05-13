@@ -5,6 +5,9 @@ import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 export const metadata: Metadata = {
   title: "Fuel-Ops · Campo",
   description: "Captura y sincronización de tickets de combustible",
+  icons: {
+    icon: "/favicon.svg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

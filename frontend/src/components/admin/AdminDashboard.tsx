@@ -1,5 +1,6 @@
 "use client";
 
+import type { LitrosBarRow } from "@/components/admin/AdminLitrosChart";
 import { AdminTicketPanel } from "@/components/admin/AdminTicketPanel";
 import type { AdminSortKey, AdminSortOrder, AdminTicketRow, AdminSummary, VehicleStat } from "@/lib/admin-api";
 import {
@@ -16,36 +17,58 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 const LOW_CONF = 0.75;
 
+const MONTH_NAMES_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+] as const;
+
+const AdminLitrosChartLazy = dynamic(
+  () => import("@/components/admin/AdminLitrosChart").then((m) => m.AdminLitrosChart),
+  {
+    ssr: false,
+    loading: () => <p className="text-sm text-zinc-500">Cargando gráfico…</p>,
+  },
+);
+
+/** Mes/año solo en el cliente para evitar desajuste de hidratación SSR vs navegador. */
 function useMonthState() {
-  const now = new Date();
-  const [year, setYear] = useState(now.getUTCFullYear());
-  const [month, setMonth] = useState(now.getUTCMonth() + 1);
+  const [year, setYear] = useState<number | null>(null);
+  const [month, setMonth] = useState<number | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    setYear(now.getUTCFullYear());
+    setMonth(now.getUTCMonth() + 1);
+  }, []);
   const prev = () => {
+    if (year == null || month == null) return;
     if (month === 1) {
       setMonth(12);
-      setYear((y) => y - 1);
-    } else setMonth((m) => m - 1);
+      setYear(year - 1);
+    } else setMonth(month - 1);
   };
   const next = () => {
+    if (year == null || month == null) return;
     if (month === 12) {
       setMonth(1);
-      setYear((y) => y + 1);
-    } else setMonth((m) => m + 1);
+      setYear(year + 1);
+    } else setMonth(month + 1);
   };
-  return { year, month, prev, next };
+  return { year, month, prev, next, ready: year != null && month != null };
 }
 
 function SortHead({
@@ -72,7 +95,7 @@ function SortHead({
 }
 
 export function AdminDashboard() {
-  const { year, month, prev, next } = useMonthState();
+  const { year, month, prev, next, ready } = useMonthState();
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [vehicles, setVehicles] = useState<VehicleStat[]>([]);
   const [tickets, setTickets] = useState<AdminTicketRow[]>([]);
@@ -85,9 +108,15 @@ export function AdminDashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [selected, setSelected] = useState<AdminTicketRow | null>(null);
 
-  const range = useMemo(() => monthUtcIsoRange(year, month), [year, month]);
+  const range = useMemo(() => {
+    if (!ready || year == null || month == null) {
+      return { from: "1970-01-01T00:00:00.000Z", to: "1970-01-31T23:59:59.999Z" };
+    }
+    return monthUtcIsoRange(year, month);
+  }, [ready, year, month]);
 
   const load = useCallback(async () => {
+    if (!ready || year == null || month == null) return;
     setLoading(true);
     setErr(null);
     try {
@@ -112,25 +141,24 @@ export function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [year, month, range.from, range.to, sort.by, sort.ord]);
+  }, [ready, year, month, range.from, range.to, sort.by, sort.ord]);
 
   useEffect(() => {
+    if (!ready) return;
     void load();
-  }, [load]);
+  }, [load, ready]);
 
   const fmtMoney = useMemo(
     () => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }),
     [],
   );
 
-  const chartData = useMemo(
-    () =>
-      vehicles.map((v) => ({
-        patente: v.patente.length > 12 ? `${v.patente.slice(0, 11)}…` : v.patente,
-        litros: Math.round(v.total_litros * 10) / 10,
-      })),
-    [vehicles],
-  );
+  const chartData = useMemo((): LitrosBarRow[] => {
+    return vehicles.map((v) => ({
+      patente: v.patente.length > 12 ? `${v.patente.slice(0, 11)}…` : v.patente,
+      litros: Math.round(v.total_litros * 10) / 10,
+    }));
+  }, [vehicles]);
 
   const toggleSort = useCallback((key: AdminSortKey) => {
     setSort((s) =>
@@ -228,30 +256,38 @@ export function AdminDashboard() {
           <button
             type="button"
             onClick={prev}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+            disabled={!ready}
+            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
             aria-label="Mes anterior"
           >
             ←
           </button>
-          <h1 className="text-xl font-semibold capitalize text-white">
-            {new Date(Date.UTC(year, month - 1, 1)).toLocaleString("es-AR", { month: "long", year: "numeric" })}
+          <h1 className="text-xl font-semibold text-white">
+            {ready && year != null && month != null ? `${MONTH_NAMES_ES[month - 1]} ${year}` : "…"}
           </h1>
           <button
             type="button"
             onClick={next}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+            disabled={!ready}
+            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
             aria-label="Mes siguiente"
           >
             →
           </button>
         </div>
-        <a
-          href={exportMonthlyUrl(year, month)}
-          download
-          className="inline-flex min-h-12 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-900 hover:bg-white"
-        >
-          Exportar Excel (.xlsx)
-        </a>
+        {ready && year != null && month != null ? (
+          <a
+            href={exportMonthlyUrl(year, month)}
+            download
+            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-900 hover:bg-white"
+          >
+            Exportar Excel (.xlsx)
+          </a>
+        ) : (
+          <span className="inline-flex min-h-12 cursor-not-allowed items-center justify-center rounded-xl bg-zinc-800 px-5 text-sm font-semibold text-zinc-500">
+            Exportar Excel (.xlsx)
+          </span>
+        )}
       </div>
 
       {err ? (
@@ -280,22 +316,12 @@ export function AdminDashboard() {
       <section className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">Litros por patente (mes)</h2>
         <div className="h-72 w-full">
-          {chartData.length === 0 ? (
+          {!ready ? (
+            <p className="text-sm text-zinc-500">Preparando período…</p>
+          ) : chartData.length === 0 ? (
             <p className="text-sm text-zinc-500">Sin datos en este período.</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 32 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="patente" tick={{ fill: "#a1a1aa", fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={60} />
-                <YAxis tick={{ fill: "#71717a", fontSize: 11 }} width={44} />
-                <Tooltip
-                  contentStyle={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8 }}
-                  labelStyle={{ color: "#fafafa" }}
-                  formatter={(v: number) => [`${v} L`, "Litros"]}
-                />
-                <Bar dataKey="litros" fill="#22d3ee" radius={[6, 6, 0, 0]} maxBarSize={48} />
-              </BarChart>
-            </ResponsiveContainer>
+            <AdminLitrosChartLazy data={chartData} />
           )}
         </div>
       </section>

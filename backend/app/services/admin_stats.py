@@ -5,6 +5,7 @@ from __future__ import annotations
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Select, and_, case, func, select
@@ -12,6 +13,22 @@ from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
+
+
+def _json_float(x: Any) -> float:
+    if x is None:
+        return 0.0
+    if isinstance(x, Decimal):
+        return float(x)
+    return float(x)
+
+
+def _json_int(x: Any) -> int:
+    if x is None:
+        return 0
+    if isinstance(x, Decimal):
+        return int(x)
+    return int(x)
 
 
 def _month_bounds_utc(year: int, month: int) -> tuple[datetime, datetime]:
@@ -56,9 +73,9 @@ def summary_for_month(db: Session, period: MonthPeriod) -> dict[str, Any]:
     return {
         "year": period.year,
         "month": period.month,
-        "total_litros": float(litros) if litros is not None else 0.0,
-        "total_monto": float(monto) if monto is not None else 0.0,
-        "cantidad_cargas": int(n),
+        "total_litros": _json_float(litros),
+        "total_monto": _json_float(monto),
+        "cantidad_cargas": _json_int(n),
     }
 
 
@@ -84,10 +101,10 @@ def liters_by_vehicle_month(db: Session, period: MonthPeriod) -> list[dict[str, 
     rows = db.execute(q).all()
     return [
         {
-            "vehicle_id": int(r.vehicle_id) if r.vehicle_id is not None else None,
+            "vehicle_id": _json_int(r.vehicle_id) if r.vehicle_id is not None else None,
             "patente": r.patente,
-            "total_litros": float(r.total_litros or 0),
-            "cantidad_cargas": int(r.cantidad_cargas or 0),
+            "total_litros": _json_float(r.total_litros),
+            "cantidad_cargas": _json_int(r.cantidad_cargas),
         }
         for r in rows
     ]
