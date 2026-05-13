@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/api";
+import { getApiBase } from "@/lib/api";
 
 export type AdminSortKey = "fecha" | "patente" | "confidence_score" | "ingested_at" | "id";
 export type AdminSortOrder = "asc" | "desc";
@@ -42,14 +42,14 @@ export function monthUtcIsoRange(year: number, month: number): { from: string; t
 
 export async function fetchAdminSummary(year: number, month: number): Promise<AdminSummary> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
-  const res = await fetch(`${API_BASE}/admin/stats/summary?${q}`, { cache: "no-store" });
+  const res = await fetch(`${getApiBase()}/admin/stats/summary?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`summary ${res.status}`);
   return res.json() as Promise<AdminSummary>;
 }
 
 export async function fetchAdminVehicleStats(year: number, month: number): Promise<{ vehicles: VehicleStat[] }> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
-  const res = await fetch(`${API_BASE}/admin/stats/vehicles?${q}`, { cache: "no-store" });
+  const res = await fetch(`${getApiBase()}/admin/stats/vehicles?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`vehicles ${res.status}`);
   return res.json() as Promise<{ vehicles: VehicleStat[] }>;
 }
@@ -70,7 +70,7 @@ export async function fetchAdminTickets(params: {
     limit: String(params.limit ?? 100),
     offset: String(params.offset ?? 0),
   });
-  const res = await fetch(`${API_BASE}/admin/tickets?${q}`, { cache: "no-store" });
+  const res = await fetch(`${getApiBase()}/admin/tickets?${q}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`tickets ${res.status}`);
   return res.json() as Promise<{ total: number; items: AdminTicketRow[] }>;
 }
@@ -79,7 +79,7 @@ export async function patchAdminTicket(
   id: number,
   body: Partial<{ litros: number | null; monto: number | null; fecha: string | null; is_verified: boolean }>,
 ): Promise<AdminTicketRow> {
-  const res = await fetch(`${API_BASE}/admin/tickets/${id}`, {
+  const res = await fetch(`${getApiBase()}/admin/tickets/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -92,10 +92,10 @@ export async function patchAdminTicket(
 }
 
 export function ticketImageUrl(id: number): string {
-  return `${API_BASE}/admin/tickets/${id}/image`;
+  return `${getApiBase()}/admin/tickets/${id}/image`;
 }
 
 export function exportMonthlyUrl(year: number, month: number): string {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
-  return `${API_BASE}/admin/export/monthly.xlsx?${q}`;
+  return `${getApiBase()}/admin/export/monthly.xlsx?${q}`;
 }

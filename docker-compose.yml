@@ -1,5 +1,6 @@
 services:
   db:
+    container_name: fuelops_db
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-fuelops}
@@ -14,8 +15,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - lyntrix_network
 
   api:
+    container_name: fuelops_api
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -23,6 +27,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-fuelops}:${POSTGRES_PASSWORD:-fuelops_dev}@db:5432/${POSTGRES_DB:-fuelops}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       UPLOAD_DIR: /data/uploads
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       - uploads_data:/data/uploads
     ports:
@@ -30,8 +35,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - lyntrix_network
 
   frontend:
+    container_name: fuelops_web
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -41,7 +49,13 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - api
+    networks:
+      - lyntrix_network
 
 volumes:
   postgres_data:
   uploads_data:
+
+networks:
+  lyntrix_network:
+    external: true

@@ -1,4 +1,4 @@
-const CACHE = "fuelops-shell-v1";
+const CACHE = "fuelops-shell-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/api";
+import { getApiBase } from "@/lib/api";
 
 export class UploadHttpError extends Error {
   constructor(
@@ -28,7 +28,7 @@ export async function uploadTicketFile(
   form.append("file", file);
   form.append("vehicle_id", String(vehicleId));
 
-  const res = await fetch(`${API_BASE}/upload`, {
+  const res = await fetch(`${getApiBase()}/upload`, {
     method: "POST",
     body: form,
   });

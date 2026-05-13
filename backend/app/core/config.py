@@ -25,6 +25,11 @@ class Settings(BaseSettings):
         alias="FUEL_OPS_SEED_VEHICLES",
         description="Si no hay vehículos en DB, insertar filas demo para operadores de campo.",
     )
+    cors_origins: str = Field(
+        default="",
+        alias="CORS_ORIGINS",
+        description="Orígenes permitidos separados por coma. Vacío = cualquier origen (sin credenciales CORS).",
+    )
 
     @field_validator("upload_dir", mode="before")
     @classmethod

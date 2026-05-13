@@ -1,6 +1,6 @@
 "use client";
 
-import { API_BASE } from "@/lib/api";
+import { getApiBase } from "@/lib/api";
 import { useVehicleStore } from "@/store/useVehicleStore";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
@@ -25,7 +25,7 @@ export function VehicleSelector({ onSelected }: Props) {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch(`${API_BASE}/vehicles`, { cache: "no-store" });
+      const res = await fetch(`${getApiBase()}/vehicles`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as VehicleDTO[];
       setItems(Array.isArray(data) ? data : []);

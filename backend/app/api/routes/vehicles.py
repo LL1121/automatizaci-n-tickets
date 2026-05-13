@@ -12,6 +12,7 @@ from app.models.vehicle import Vehicle
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
 
+@router.get("")
 @router.get("/")
 def list_vehicles(db: Session = Depends(get_db)) -> list[dict]:
     rows = db.scalars(select(Vehicle).order_by(Vehicle.patente)).all()

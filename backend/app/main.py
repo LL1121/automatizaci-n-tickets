@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import get_settings
 from app.api.routes.admin import router as admin_router
 from app.api.routes.upload import router as upload_router
 from app.api.routes.vehicles import router as vehicles_router
@@ -31,12 +32,23 @@ app = FastAPI(
     description="API de ingesta y extracción inteligente de tickets de combustible.",
     version="0.1.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
+
+
+def _cors_allow_origins() -> list[str]:
+    raw = get_settings().cors_origins.strip()
+    if not raw:
+        return ["*"]
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+_origins = _cors_allow_origins()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
