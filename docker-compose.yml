@@ -11,10 +11,15 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB && PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'select 1' -q -t -A >/dev/null",
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 15s
     networks:
       - lyntrix_network
 
@@ -58,8 +63,4 @@ volumes:
 
 networks:
   lyntrix_network:
-<<<<<<< HEAD
     external: true
-=======
-    external: true
->>>>>>> 5fd44b8 (Fx: Docker compose)
