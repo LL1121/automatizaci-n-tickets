@@ -12,7 +12,7 @@ from app.core.config import get_settings
 from app.api.routes.admin import router as admin_router
 from app.api.routes.upload import router as upload_router
 from app.api.routes.vehicles import router as vehicles_router
-from app.db.session import SessionLocal, engine
+from app.db.session import get_engine, get_session_factory, verify_database_connection
 from app.models import Base, Ticket, Vehicle  # noqa: F401 - registro de metadatos SQLAlchemy
 from app.services.seed_vehicles import seed_demo_vehicles_if_configured
 
@@ -28,8 +28,10 @@ async def lifespan(app: FastAPI):
         settings.postgres_host,
         settings.postgres_db,
     )
+    verify_database_connection()
+    engine = get_engine()
     Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db:
+    with get_session_factory()() as db:
         seed_demo_vehicles_if_configured(db)
     yield
 
