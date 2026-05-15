@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Numeric, String, UniqueConstraint, false, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, UniqueConstraint, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -23,7 +23,7 @@ class Ticket(Base):
     cuit_proveedor: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     nro_ticket: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     litros: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
-    monto: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    kilometraje: Mapped[int | None] = mapped_column(Integer, nullable=True)
     fecha: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     url_imagen: Mapped[str] = mapped_column(String(1024), nullable=False)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)

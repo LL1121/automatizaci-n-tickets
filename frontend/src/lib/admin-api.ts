@@ -8,7 +8,7 @@ export type AdminTicketRow = {
   cuit_proveedor: string;
   nro_ticket: string;
   litros: number | null;
-  monto: number | null;
+  kilometraje: number | null;
   fecha: string | null;
   ingested_at: string | null;
   url_imagen: string;
@@ -23,7 +23,7 @@ export type AdminSummary = {
   year: number;
   month: number;
   total_litros: number;
-  total_monto: number;
+  total_kilometraje: number;
   cantidad_cargas: number;
 };
 
@@ -77,7 +77,7 @@ export async function fetchAdminTickets(params: {
 
 export async function patchAdminTicket(
   id: number,
-  body: Partial<{ litros: number | null; monto: number | null; fecha: string | null; is_verified: boolean }>,
+  body: Partial<{ litros: number | null; kilometraje: number | null; fecha: string | null; is_verified: boolean }>,
 ): Promise<AdminTicketRow> {
   const res = await fetch(`${getApiBase()}/admin/tickets/${id}`, {
     method: "PATCH",

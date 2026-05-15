@@ -65,16 +65,16 @@ def summary_for_month(db: Session, period: MonthPeriod) -> dict[str, Any]:
     eff = effective_ticket_datetime()
     q = select(
         func.coalesce(func.sum(Ticket.litros), 0),
-        func.coalesce(func.sum(Ticket.monto), 0),
+        func.coalesce(func.sum(Ticket.kilometraje), 0),
         func.count(Ticket.id),
     ).where(and_(eff >= period.start_utc, eff <= period.end_utc))
 
-    litros, monto, n = db.execute(q).one()
+    litros, km_sum, n = db.execute(q).one()
     return {
         "year": period.year,
         "month": period.month,
         "total_litros": _json_float(litros),
-        "total_monto": _json_float(monto),
+        "total_kilometraje": _json_int(km_sum),
         "cantidad_cargas": _json_int(n),
     }
 
@@ -126,7 +126,7 @@ def tickets_query_filtered(
             Ticket.cuit_proveedor,
             Ticket.nro_ticket,
             Ticket.litros,
-            Ticket.monto,
+            Ticket.kilometraje,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.url_imagen,
@@ -188,7 +188,7 @@ def tickets_for_export(
             Ticket.cuit_proveedor,
             Ticket.nro_ticket,
             Ticket.litros,
-            Ticket.monto,
+            Ticket.kilometraje,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.confidence_score,
@@ -210,7 +210,7 @@ def tickets_for_export(
                 "cuit_proveedor": r["cuit_proveedor"],
                 "nro_ticket": r["nro_ticket"],
                 "litros": float(r["litros"]) if r["litros"] is not None else None,
-                "monto": float(r["monto"]) if r["monto"] is not None else None,
+                "kilometraje": r["kilometraje"],
                 "fecha": r["fecha"].isoformat() if r["fecha"] else None,
                 "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
                 "confidence_score": r["confidence_score"],

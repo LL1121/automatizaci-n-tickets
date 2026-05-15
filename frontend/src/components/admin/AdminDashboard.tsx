@@ -148,11 +148,6 @@ export function AdminDashboard() {
     void load();
   }, [load, ready]);
 
-  const fmtMoney = useMemo(
-    () => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }),
-    [],
-  );
-
   const chartData = useMemo((): LitrosBarRow[] => {
     return vehicles.map((v) => ({
       patente: v.patente.length > 12 ? `${v.patente.slice(0, 11)}…` : v.patente,
@@ -203,11 +198,11 @@ export function AdminDashboard() {
         cell: ({ getValue }) => <span className="text-sm tabular-nums">{getValue() != null ? Number(getValue()).toFixed(2) : "—"}</span>,
       },
       {
-        accessorKey: "monto",
-        header: "Monto",
+        accessorKey: "kilometraje",
+        header: "Km",
         cell: ({ getValue }) => (
           <span className="text-sm tabular-nums text-zinc-300">
-            {getValue() != null ? fmtMoney.format(Number(getValue())) : "—"}
+            {getValue() != null ? Number(getValue()).toLocaleString("es-AR") : "—"}
           </span>
         ),
       },
@@ -234,7 +229,7 @@ export function AdminDashboard() {
           ),
       },
     ],
-    [fmtMoney, sort.by, sort.ord, toggleSort],
+    [sort.by, sort.ord, toggleSort],
   );
 
   const table = useReactTable({
@@ -303,8 +298,10 @@ export function AdminDashboard() {
             <p className="mt-2 text-3xl font-semibold tabular-nums text-white">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Gasto total</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-cyan-400">{fmtMoney.format(summary.total_monto)}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Km registrados (mes)</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-cyan-400">
+              {summary.total_kilometraje.toLocaleString("es-AR")} km
+            </p>
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Cantidad de cargas</p>

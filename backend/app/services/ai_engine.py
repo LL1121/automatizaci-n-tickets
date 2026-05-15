@@ -15,23 +15,31 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_INSTRUCTION = """Sos un extractor de datos para tickets de combustible argentinos.
-Analizá la imagen del ticket y devolvé ÚNICAMENTE un objeto JSON válido (sin markdown, sin comentarios)
-con estas claves exactas:
-- cuit_proveedor: string, CUIT del estacionamiento o razón social (solo dígitos o con guiones, normalizá a 11 dígitos si podés)
-- nro_ticket: string, número de comprobante o ticket visible
-- litros: número o null si no se lee con confianza
-- monto: número en pesos (sin símbolo) o null
-- fecha: string ISO 8601 con zona horaria si está en el ticket, o null (ejemplo: 2024-05-10T14:32:00-03:00)
-- confidence_score: número entre 0 y 1 indicando confianza global en la extracción
+SYSTEM_INSTRUCTION = """Sos un extractor de datos para tickets de combustible YPF EN RUTA (Argentina).
+Analizá la imagen del ticket térmico (suele ser alto y angosto) y devolvé ÚNICAMENTE un objeto JSON válido
+(sin markdown, sin comentarios) con estas claves exactas:
 
-Reglas:
-- cuit_proveedor y nro_ticket son OBLIGATORIOS: nunca uses string vacío. Si no podés leerlos, poné confidence_score en 0 y el mejor texto parcial que veas (aunque sea incompleto).
-- litros, monto y fecha: null si no se leen con confianza.
-- Los números deben ser JSON numbers, no strings.
+- cuit_proveedor: string, CUIT del proveedor/estación (11 dígitos si podés, con o sin guiones)
+- nro_ticket: string, número de comprobante o transacción visible en el ticket
+- patente: string, valor junto a la etiqueta "Patente:" (ej. AG975ZC, AC979ML). Solo la patente, sin "Patente:"
+- kilometraje: entero, odómetro al lado de "Km:" o "Km." (solo dígitos, sin separadores de miles)
+- litros: número decimal, cantidad bajo la columna "CANT" del producto (ej. INFINIA DIESEL). Es litros cargados.
+- fecha: string ISO 8601 con zona -03:00. Preferí "Fecha Impresion" del pie; si no, la fecha/hora del encabezado.
+- confidence_score: número entre 0 y 1 (confianza global)
+
+Reglas YPF EN RUTA:
+- cuit_proveedor, nro_ticket y patente son OBLIGATORIOS: nunca string vacío.
+- kilometraje y litros: si no se leen con confianza, usá null (no inventes).
+- fecha: obligatoria si está legible en el ticket; formato ISO (ej. 2026-05-14T12:05:21-03:00).
+- Los tickets NO traen monto en pesos: no incluyas monto ni campos de importe.
+- patente: mayúsculas, sin espacios internos salvo que en el ticket vengan (normalizá quitando espacios).
+- kilometraje debe ser JSON integer, litros JSON number.
 - No incluyas ninguna clave adicional."""
 
-USER_PROMPT = "Extraé los datos del ticket según el esquema indicado."
+USER_PROMPT = (
+    "Extraé los datos del ticket YPF EN RUTA según el esquema. "
+    "Buscá Patente:, Km:, columna CANT y Fecha Impresion."
+)
 
 
 class ExtractedTicketData(BaseModel):
@@ -39,12 +47,13 @@ class ExtractedTicketData(BaseModel):
 
     cuit_proveedor: str = Field(..., min_length=1, max_length=32)
     nro_ticket: str = Field(..., min_length=1, max_length=64)
+    patente: str = Field(..., min_length=1, max_length=32)
+    kilometraje: int | None = None
     litros: float | None = None
-    monto: float | None = None
     fecha: str | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
-    @field_validator("cuit_proveedor", "nro_ticket", mode="before")
+    @field_validator("cuit_proveedor", "nro_ticket", "patente", mode="before")
     @classmethod
     def strip_strings(cls, v: Any) -> str:
         if v is None:
@@ -53,6 +62,20 @@ class ExtractedTicketData(BaseModel):
         if not s:
             raise ValueError("no puede quedar vacío")
         return s
+
+    @field_validator("kilometraje", mode="before")
+    @classmethod
+    def parse_kilometraje(cls, v: Any) -> int | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, float):
+            return int(v)
+        if isinstance(v, int):
+            return v
+        digits = re.sub(r"\D", "", str(v))
+        if not digits:
+            return None
+        return int(digits)
 
 
 class AIEngineError(RuntimeError):
@@ -64,7 +87,7 @@ class AIQuotaExceededError(AIEngineError):
 
 
 class AIExtractionIncompleteError(AIEngineError):
-    """La imagen no permitió leer CUIT o número de ticket."""
+    """La imagen no permitió leer campos obligatorios del ticket."""
 
 
 def _google_error_message(exc: google_exceptions.GoogleAPIError) -> AIEngineError:
@@ -96,7 +119,7 @@ def _strip_json_fence(text: str) -> str:
 
 def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
     """
-    Envía la imagen ya pre-procesada a Gemini 1.5 Flash y valida el JSON devuelto.
+    Envía la imagen ya pre-procesada a Gemini y valida el JSON devuelto.
     """
     settings = get_settings()
     if not settings.google_api_key:
@@ -143,11 +166,12 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
 
     cuit = str(payload.get("cuit_proveedor") or "").strip()
     nro = str(payload.get("nro_ticket") or "").strip()
-    if not cuit or not nro:
-        logger.info("Extracción incompleta (CUIT o ticket vacío): %s", payload)
+    patente = str(payload.get("patente") or "").strip()
+    if not cuit or not nro or not patente:
+        logger.info("Extracción incompleta (CUIT, ticket o patente vacío): %s", payload)
         raise AIExtractionIncompleteError(
-            "No se pudo leer el CUIT o el número de ticket en la foto. "
-            "Acercá el comprobante, usá buena luz, mantené la cámara quieta y volvé a capturar."
+            "No se pudo leer el CUIT, el número de ticket o la patente en la foto. "
+            "Encuadrá todo el ticket (es alto), usá buena luz y volvé a capturar."
         )
 
     try:

@@ -187,12 +187,12 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <motion.div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
+      <motion.div className="relative aspect-[2/5] min-h-[min(78vh,720px)] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
         <video
           ref={videoRef}
           playsInline
           muted
-          className={`h-full w-full object-cover transition-opacity duration-150 ${
+          className={`h-full w-full object-contain transition-opacity duration-150 ${
             isFrozen ? "opacity-0" : "opacity-100"
           }`}
         />
@@ -202,7 +202,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           <img
             src={frozenUrl}
             alt="Captura del ticket"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-contain"
           />
         ) : null}
 
@@ -211,7 +211,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         ) : null}
 
         <motion.div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-          <div className="relative h-[72%] w-[88%] max-w-md">
+          <div className="relative h-[88%] w-[72%] max-w-sm">
             <motion.div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
             <div ref={scanHostRef} className="absolute inset-[10%] overflow-hidden rounded-xl">
               {!isFrozen ? (

@@ -40,7 +40,7 @@ SORT_ORDER = Literal["asc", "desc"]
 
 class TicketUpdateBody(BaseModel):
     litros: float | None = None
-    monto: float | None = None
+    kilometraje: int | None = None
     fecha: datetime | None = None
     is_verified: bool | None = None
 
@@ -153,7 +153,7 @@ def admin_list_tickets(
                 "cuit_proveedor": r["cuit_proveedor"],
                 "nro_ticket": r["nro_ticket"],
                 "litros": float(r["litros"]) if r["litros"] is not None else None,
-                "monto": float(r["monto"]) if r["monto"] is not None else None,
+                "kilometraje": r["kilometraje"],
                 "fecha": r["fecha"].isoformat() if r["fecha"] else None,
                 "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
                 "url_imagen": r["url_imagen"],
@@ -175,7 +175,7 @@ def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str,
             Ticket.cuit_proveedor,
             Ticket.nro_ticket,
             Ticket.litros,
-            Ticket.monto,
+            Ticket.kilometraje,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.url_imagen,
@@ -197,7 +197,7 @@ def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str,
         "cuit_proveedor": r["cuit_proveedor"],
         "nro_ticket": r["nro_ticket"],
         "litros": float(r["litros"]) if r["litros"] is not None else None,
-        "monto": float(r["monto"]) if r["monto"] is not None else None,
+        "kilometraje": r["kilometraje"],
         "fecha": r["fecha"].isoformat() if r["fecha"] else None,
         "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
         "url_imagen": r["url_imagen"],
@@ -236,9 +236,8 @@ def admin_patch_ticket(
     if "litros" in updates:
         v = updates["litros"]
         t.litros = None if v is None else Decimal(str(v))
-    if "monto" in updates:
-        v = updates["monto"]
-        t.monto = None if v is None else Decimal(str(v))
+    if "kilometraje" in updates:
+        t.kilometraje = updates["kilometraje"]
     if "fecha" in updates:
         v = updates["fecha"]
         if v is None:
@@ -281,7 +280,7 @@ def admin_export_monthly(
         "cuit",
         "nro_ticket",
         "litros",
-        "monto",
+        "kilometraje",
         "fecha_ticket",
         "ingested_at",
         "confidence",
@@ -296,7 +295,7 @@ def admin_export_monthly(
                 r["cuit_proveedor"],
                 r["nro_ticket"],
                 r["litros"],
-                r["monto"],
+                r["kilometraje"],
                 r["fecha"],
                 r["ingested_at"],
                 r["confidence_score"],

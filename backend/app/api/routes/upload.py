@@ -26,6 +26,7 @@ from app.services.ai_engine import (
     extract_ticket_from_image,
 )
 from app.services.image_preprocess import ImagePreprocessError, preprocess_for_vision
+from app.services.plate import normalize_patente, patentes_coinciden
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,29 @@ def _normalize_nro_ticket(raw: str) -> str:
 def _parse_fecha(value: str | None) -> datetime | None:
     if not value:
         return None
+    text = value.strip()
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        logger.info("Fecha IA no parseable como ISO: %s", value)
-        return None
+        pass
+
+    m = re.match(
+        r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$",
+        text,
+    )
+    if m:
+        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        hour = int(m.group(4) or 0)
+        minute = int(m.group(5) or 0)
+        second = int(m.group(6) or 0)
+        try:
+            return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+        except ValueError:
+            logger.info("Fecha IA con componentes inválidos: %s", value)
+            return None
+
+    logger.info("Fecha IA no parseable: %s", value)
+    return None
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -69,13 +88,15 @@ async def upload_ticket(
     settings = get_settings()
 
     resolved_vehicle_id: int | None = vehicle_id
+    vehicle_patente: str | None = None
     if resolved_vehicle_id is not None:
-        exists = db.scalar(select(Vehicle.id).where(Vehicle.id == resolved_vehicle_id))
-        if exists is None:
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == resolved_vehicle_id))
+        if vehicle is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="vehicle_id no corresponde a un vehículo existente.",
             )
+        vehicle_patente = vehicle.patente
 
     ct = file.content_type
     if ct is None or ct not in _ALLOWED_CONTENT_TYPES:
@@ -113,10 +134,30 @@ async def upload_ticket(
 
     cuit = _normalize_cuit(extracted.cuit_proveedor)
     nro = _normalize_nro_ticket(extracted.nro_ticket)
-    if not cuit or not nro:
+    patente_leida = normalize_patente(extracted.patente)
+    if not cuit or not nro or not patente_leida:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="La IA no devolvió CUIT o número de ticket suficientes para registrar el comprobante.",
+            detail="La IA no devolvió CUIT, número de ticket o patente suficientes para registrar el comprobante.",
+        )
+
+    if vehicle_patente is not None and not patentes_coinciden(vehicle_patente, extracted.patente):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"La patente del ticket ({normalize_patente(extracted.patente)}) no coincide con la seleccionada "
+                f"({normalize_patente(vehicle_patente)}). Elegí el vehículo correcto o volvé a capturar."
+            ),
+        )
+
+    fecha_ticket = _parse_fecha(extracted.fecha)
+    if fecha_ticket is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "No se pudo leer la fecha del ticket (buscá que se vea «Fecha Impresion»). "
+                "Mejorá la foto y volvé a capturar."
+            ),
         )
 
     existing = db.scalar(
@@ -150,8 +191,8 @@ async def upload_ticket(
         cuit_proveedor=cuit,
         nro_ticket=nro,
         litros=Decimal(str(extracted.litros)) if extracted.litros is not None else None,
-        monto=Decimal(str(extracted.monto)) if extracted.monto is not None else None,
-        fecha=_parse_fecha(extracted.fecha),
+        kilometraje=extracted.kilometraje,
+        fecha=fecha_ticket,
         url_imagen=url_imagen,
         confidence_score=extracted.confidence_score,
         vehicle_id=resolved_vehicle_id,
@@ -188,11 +229,12 @@ async def upload_ticket(
         "cuit_proveedor": ticket.cuit_proveedor,
         "nro_ticket": ticket.nro_ticket,
         "litros": float(ticket.litros) if ticket.litros is not None else None,
-        "monto": float(ticket.monto) if ticket.monto is not None else None,
+        "kilometraje": ticket.kilometraje,
         "fecha": ticket.fecha.isoformat() if ticket.fecha else None,
         "url_imagen": ticket.url_imagen,
         "confidence_score": ticket.confidence_score,
         "vehicle_id": ticket.vehicle_id,
+        "patente_leida": patente_leida,
         "is_verified": ticket.is_verified,
         "ingested_at": ticket.ingested_at.isoformat() if ticket.ingested_at else None,
     }
