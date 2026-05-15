@@ -119,7 +119,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         setBusy(false);
         return;
       }
-      const outcome = await persistAndTryUpload(file, vehicleId);
+      const outcome = await persistAndTryUpload(file, vehicleId, patente);
       if (outcome.mode === "synced") {
         onResult({ mode: "synced" });
       } else {

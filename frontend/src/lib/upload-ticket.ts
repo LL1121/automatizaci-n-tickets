@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/api";
+import { QUOTA_BLOCKED_STATUSES } from "@/lib/sync-policy";
 
 export class UploadHttpError extends Error {
   constructor(
@@ -11,15 +12,20 @@ export class UploadHttpError extends Error {
   }
 }
 
+export function isQuotaBlockedError(error: unknown): boolean {
+  return error instanceof UploadHttpError && QUOTA_BLOCKED_STATUSES.has(error.status);
+}
+
 /**
- * Fallo definitivo del cliente (no reintentar cola): 4xx salvo los que suelen ser transitorios.
- * No usar heurísticas tipo TypeError + "fetch": en Chrome "Failed to fetch" también es CORS/SSL/502.
+ * Fallo definitivo del cliente (no reintentar en cola automática).
+ * 429 = cuota Gemini: nunca en bucle automático.
  */
 export function isPermanentUploadFailure(error: unknown): boolean {
   if (!(error instanceof UploadHttpError)) return false;
   const s = error.status;
+  if (isQuotaBlockedError(error)) return true;
   if (s >= 500) return false;
-  if (s === 408 || s === 429) return false;
+  if (s === 408) return false;
   return s >= 400;
 }
 

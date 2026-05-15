@@ -1,19 +1,32 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { flushPendingTickets } from "@/lib/sync-queue";
+import { AUTO_SYNC_COOLDOWN_MS, AUTO_SYNC_ENABLED } from "@/lib/sync-policy";
+import { flushPendingTickets, type FlushResult } from "@/lib/sync-queue";
 
-export function useOfflineSync(onFlush?: (result: Awaited<ReturnType<typeof flushPendingTickets>>) => void) {
+/**
+ * Sincronización automática desactivada por defecto (control de tokens Gemini).
+ * Si AUTO_SYNC_ENABLED, como máximo 1 ticket por cooldown al volver online.
+ */
+export function useOfflineSync(onFlush?: (result: FlushResult) => void) {
   const busy = useRef(false);
+  const lastRun = useRef(0);
   const onFlushRef = useRef(onFlush);
   onFlushRef.current = onFlush;
 
   useEffect(() => {
+    if (!AUTO_SYNC_ENABLED) return;
+
     const run = async () => {
       if (busy.current || typeof navigator === "undefined" || !navigator.onLine) return;
+      const now = Date.now();
+      if (now - lastRun.current < AUTO_SYNC_COOLDOWN_MS) return;
       busy.current = true;
       try {
-        const result = await flushPendingTickets();
+        const result = await flushPendingTickets({ manual: false, maxItems: 1 });
+        if (result.uploaded > 0 || result.failed > 0) {
+          lastRun.current = now;
+        }
         onFlushRef.current?.(result);
       } finally {
         busy.current = false;

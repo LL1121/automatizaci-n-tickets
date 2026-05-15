@@ -2,7 +2,8 @@
 
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { countPendingTickets } from "@/lib/offline-db";
+import { countInboxTickets } from "@/lib/offline-db";
+import { PendingInbox } from "@/components/PendingInbox";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useVehicleStore } from "@/store/useVehicleStore";
 import { AnimatePresence, motion } from "framer-motion";
@@ -11,7 +12,7 @@ import { CameraCapture } from "@/components/CameraCapture";
 import { MockAuthGate } from "@/components/MockAuthGate";
 import { VehicleSelector } from "@/components/VehicleSelector";
 
-type Step = "auth" | "vehicle" | "camera" | "feedback";
+type Step = "auth" | "vehicle" | "camera" | "feedback" | "pending";
 
 type FeedbackState =
   | { step: "feedback"; variant: "synced" }
@@ -45,7 +46,7 @@ export function FieldApp() {
 
   const refreshPending = useCallback(async () => {
     try {
-      const n = await countPendingTickets();
+      const n = await countInboxTickets();
       setPendingCount(n);
     } catch {
       setPendingCount(0);
@@ -75,10 +76,14 @@ export function FieldApp() {
       return;
     }
     if (vehicleId == null) {
-      setStep("vehicle");
+      setStep((prev) => (prev === "pending" ? "pending" : "vehicle"));
       return;
     }
-    setStep((prev) => (prev === "auth" || prev === "vehicle" ? "camera" : prev));
+    setStep((prev) => {
+      if (prev === "pending" || prev === "feedback" || prev === "camera") return prev;
+      if (prev === "auth" || prev === "vehicle") return "camera";
+      return prev;
+    });
   }, [token, vehicleId]);
 
   const handleAuthDone = () => {
@@ -118,9 +123,11 @@ export function FieldApp() {
         ? "vehicle"
         : step === "camera"
           ? "camera"
-          : feedback
-            ? `feedback-${feedback.variant}`
-            : "feedback";
+          : step === "pending"
+            ? "pending"
+            : feedback
+              ? `feedback-${feedback.variant}`
+              : "feedback";
 
   if (!mounted) {
     return <div className="min-h-dvh bg-field-bg" aria-busy="true" />;
@@ -141,8 +148,18 @@ export function FieldApp() {
           >
             {online ? "En línea" : "Sin conexión"}
           </span>
-          {pendingCount > 0 ? (
-            <span className="text-amber-300">Pendientes: {pendingCount}</span>
+          {token ? (
+            <button
+              type="button"
+              onClick={() => setStep("pending")}
+              className={`rounded-full px-2 py-0.5 font-medium ${
+                pendingCount > 0
+                  ? "bg-amber-500/20 text-amber-300"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              Pendientes{pendingCount > 0 ? `: ${pendingCount}` : ""}
+            </button>
           ) : null}
         </div>
       </header>
@@ -210,8 +227,8 @@ export function FieldApp() {
                 <p className="text-sm font-medium text-amber-200">Guardado en este dispositivo</p>
                 <p className="mt-2 text-sm text-zinc-400">
                   {feedback.navigatorOffline
-                    ? "No hay red ahora: el ticket quedó pendiente y se sube solo cuando vuelvas a estar en línea."
-                    : "No pudimos llegar al servidor (API caído, CORS o red intermitente). El ticket quedó pendiente; se reintentará solo cuando el servidor responda bien."}
+                    ? "No hay red ahora. Entrá a Pendientes y subí la foto cuando tengas conexión (una por vez)."
+                    : "Quedó guardado en Pendientes. Subilo manualmente desde ahí para no gastar cuota de IA en bucles."}
                 </p>
               </div>
             ) : null}
@@ -221,16 +238,37 @@ export function FieldApp() {
                 <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-400">{feedback.message}</p>
               </div>
             ) : null}
-            <button
-              type="button"
-              onClick={() => {
-                setFeedback(null);
-                setStep("camera");
-              }}
-              className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg"
-            >
-              Otra captura
-            </button>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedback(null);
+                  setStep("pending");
+                }}
+                className="min-h-touch w-full rounded-2xl border border-field-border py-4 text-base font-semibold text-field-accent"
+              >
+                Ver pendientes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedback(null);
+                  setStep("camera");
+                }}
+                className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg"
+              >
+                Otra captura
+              </button>
+            </div>
+          </motion.div>
+        ) : null}
+
+        {step === "pending" ? (
+          <motion.div key="pending" {...pageTransition} className="flex flex-1 flex-col">
+            <PendingInbox
+              onBack={() => setStep(vehicleId != null ? "camera" : "vehicle")}
+              onChanged={() => void refreshPending()}
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>
