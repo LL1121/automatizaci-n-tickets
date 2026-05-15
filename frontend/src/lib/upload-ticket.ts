@@ -32,10 +32,12 @@ export function isPermanentUploadFailure(error: unknown): boolean {
 export async function uploadTicketFile(
   file: File,
   vehicleId: number,
+  deviceUid: string,
 ): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("file", file);
   form.append("vehicle_id", String(vehicleId));
+  form.append("device_uid", deviceUid);
 
   const res = await fetch(`${getApiBase()}/upload`, {
     method: "POST",

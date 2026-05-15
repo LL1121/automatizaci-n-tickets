@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.models.field_device import TIPO_COMBUSTIBLE_DEFAULT, FieldDevice
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
 from app.services.ai_engine import (
@@ -51,6 +52,30 @@ def _normalize_nro_ticket(raw: str) -> str:
     return re.sub(r"\s+", "", raw).strip()[:64]
 
 
+def _normalize_remito(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    cleaned = re.sub(r"\s+", "", str(raw).strip())
+    return cleaned[:64] if cleaned else None
+
+
+def _resolve_field_device(db: Session, device_uid: str | None) -> FieldDevice:
+    uid = (device_uid or "").strip()
+    if len(uid) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="device_uid requerido (identificador del celular). Registrá el operario en la app.",
+        )
+    device = db.scalar(select(FieldDevice).where(FieldDevice.device_uid == uid))
+    if device is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dispositivo no registrado. Ingresá tu nombre en la pantalla inicial.",
+        )
+    device.last_seen_at = datetime.now(timezone.utc)
+    return device
+
+
 def _parse_fecha(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -83,9 +108,11 @@ def _parse_fecha(value: str | None) -> datetime | None:
 async def upload_ticket(
     file: UploadFile = File(..., description="Imagen del ticket (JPEG/PNG/WebP)"),
     vehicle_id: Annotated[int | None, Form(description="Vehículo asociado (opcional)")] = None,
+    device_uid: Annotated[str | None, Form(description="Identificador del dispositivo de campo")] = None,
     db: Session = Depends(get_db),
 ) -> dict:
     settings = get_settings()
+    field_device = _resolve_field_device(db, device_uid)
 
     resolved_vehicle_id: int | None = vehicle_id
     vehicle_patente: str | None = None
@@ -192,10 +219,14 @@ async def upload_ticket(
         nro_ticket=nro,
         litros=Decimal(str(extracted.litros)) if extracted.litros is not None else None,
         kilometraje=extracted.kilometraje,
+        tipo_combustible=TIPO_COMBUSTIBLE_DEFAULT,
+        remito=_normalize_remito(extracted.remito),
         fecha=fecha_ticket,
         url_imagen=url_imagen,
         confidence_score=extracted.confidence_score,
         vehicle_id=resolved_vehicle_id,
+        field_device_id=field_device.id,
+        operador_nombre=field_device.nombre,
         ingested_at=datetime.now(timezone.utc),
     )
     db.add(ticket)
@@ -230,6 +261,9 @@ async def upload_ticket(
         "nro_ticket": ticket.nro_ticket,
         "litros": float(ticket.litros) if ticket.litros is not None else None,
         "kilometraje": ticket.kilometraje,
+        "tipo_combustible": ticket.tipo_combustible,
+        "remito": ticket.remito,
+        "operador_nombre": ticket.operador_nombre,
         "fecha": ticket.fecha.isoformat() if ticket.fecha else None,
         "url_imagen": ticket.url_imagen,
         "confidence_score": ticket.confidence_score,

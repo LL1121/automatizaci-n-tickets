@@ -111,6 +111,18 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                   <p className="font-mono text-white">{ticket.patente ?? "—"}</p>
                 </div>
                 <div>
+                  <span className="text-zinc-500">Operario</span>
+                  <p className="text-white">{ticket.operador_nombre ?? "—"}</p>
+                </div>
+                <div>
+                  <span className="text-zinc-500">Combustible</span>
+                  <p className="text-white">{ticket.tipo_combustible ?? "INFINIA DIESEL"}</p>
+                </div>
+                <div>
+                  <span className="text-zinc-500">Remito</span>
+                  <p className="font-mono text-white">{ticket.remito ?? "No encontrado"}</p>
+                </div>
+                <div>
                   <span className="text-zinc-500">Confianza IA</span>
                   <p className={ticket.confidence_score != null && ticket.confidence_score < 0.75 ? "text-rose-400" : "text-zinc-200"}>
                     {ticket.confidence_score != null ? `${(ticket.confidence_score * 100).toFixed(0)}%` : "—"}

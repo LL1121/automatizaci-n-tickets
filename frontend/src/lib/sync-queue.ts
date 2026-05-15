@@ -1,3 +1,4 @@
+import { getOrCreateDeviceUid } from "@/lib/device-id";
 import {
   uploadTicketFile,
   isPermanentUploadFailure,
@@ -88,7 +89,7 @@ export async function flushPendingTickets(options: FlushOptions = {}): Promise<F
     });
 
     try {
-      await uploadTicketFile(file, row.vehicleId);
+      await uploadTicketFile(file, row.vehicleId, getOrCreateDeviceUid());
       await deletePendingTicket(row.id);
       uploaded += 1;
     } catch (e) {
@@ -131,7 +132,7 @@ export async function persistAndTryUpload(
   await putPendingTicket(record);
 
   try {
-    await uploadTicketFile(file, vehicleId);
+    await uploadTicketFile(file, vehicleId, getOrCreateDeviceUid());
     await deletePendingTicket(id);
     return { mode: "synced" };
   } catch (e) {

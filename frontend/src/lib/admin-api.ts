@@ -9,6 +9,9 @@ export type AdminTicketRow = {
   nro_ticket: string;
   litros: number | null;
   kilometraje: number | null;
+  tipo_combustible: string | null;
+  remito: string | null;
+  operador_nombre: string | null;
   fecha: string | null;
   ingested_at: string | null;
   url_imagen: string;
@@ -77,7 +80,13 @@ export async function fetchAdminTickets(params: {
 
 export async function patchAdminTicket(
   id: number,
-  body: Partial<{ litros: number | null; kilometraje: number | null; fecha: string | null; is_verified: boolean }>,
+  body: Partial<{
+    litros: number | null;
+    kilometraje: number | null;
+    remito: string | null;
+    fecha: string | null;
+    is_verified: boolean;
+  }>,
 ): Promise<AdminTicketRow> {
   const res = await fetch(`${getApiBase()}/admin/tickets/${id}`, {
     method: "PATCH",

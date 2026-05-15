@@ -23,22 +23,26 @@ Analizá la imagen del ticket térmico (suele ser alto y angosto) y devolvé ÚN
 - nro_ticket: string, número de comprobante o transacción visible en el ticket
 - patente: string, valor junto a la etiqueta "Patente:" (ej. AG975ZC, AC979ML). Solo la patente, sin "Patente:"
 - kilometraje: entero, odómetro al lado de "Km:" o "Km." (solo dígitos, sin separadores de miles)
-- litros: número decimal, cantidad bajo la columna "CANT" del producto (ej. INFINIA DIESEL). Es litros cargados.
+- litros: número decimal, valor numérico debajo de la columna "CANT" (litros cargados del producto).
+- remito: string o null, número junto a la etiqueta "REMITO" si aparece en el ticket (a veces no está).
 - fecha: string ISO 8601 con zona -03:00. Preferí "Fecha Impresion" del pie; si no, la fecha/hora del encabezado.
 - confidence_score: número entre 0 y 1 (confianza global)
 
 Reglas YPF EN RUTA:
 - cuit_proveedor, nro_ticket y patente son OBLIGATORIOS: nunca string vacío.
-- kilometraje y litros: si no se leen con confianza, usá null (no inventes).
+- litros: obligatorio si la columna CANT es legible; si no, null.
+- kilometraje: si no se lee, null (no inventes).
+- remito: null si no hay etiqueta REMITO o no es legible (no inventes).
 - fecha: obligatoria si está legible en el ticket; formato ISO (ej. 2026-05-14T12:05:21-03:00).
 - Los tickets NO traen monto en pesos: no incluyas monto ni campos de importe.
+- El combustible es INFINIA DIESEL: no hace falta devolverlo en el JSON.
 - patente: mayúsculas, sin espacios internos salvo que en el ticket vengan (normalizá quitando espacios).
 - kilometraje debe ser JSON integer, litros JSON number.
 - No incluyas ninguna clave adicional."""
 
 USER_PROMPT = (
     "Extraé los datos del ticket YPF EN RUTA según el esquema. "
-    "Buscá Patente:, Km:, columna CANT y Fecha Impresion."
+    "Buscá Patente:, Km:, columna CANT (litros), REMITO (si existe) y Fecha Impresion."
 )
 
 
@@ -50,6 +54,7 @@ class ExtractedTicketData(BaseModel):
     patente: str = Field(..., min_length=1, max_length=32)
     kilometraje: int | None = None
     litros: float | None = None
+    remito: str | None = None
     fecha: str | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
@@ -76,6 +81,14 @@ class ExtractedTicketData(BaseModel):
         if not digits:
             return None
         return int(digits)
+
+    @field_validator("remito", mode="before")
+    @classmethod
+    def parse_remito(cls, v: Any) -> str | None:
+        if v is None or v == "":
+            return None
+        s = str(v).strip()
+        return s if s else None
 
 
 class AIEngineError(RuntimeError):

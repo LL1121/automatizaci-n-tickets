@@ -24,7 +24,10 @@ class Ticket(Base):
     nro_ticket: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     litros: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     kilometraje: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tipo_combustible: Mapped[str] = mapped_column(String(64), nullable=False, default="INFINIA DIESEL")
+    remito: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fecha: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    operador_nombre: Mapped[str | None] = mapped_column(String(120), nullable=True)
     url_imagen: Mapped[str] = mapped_column(String(1024), nullable=False)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -43,3 +46,10 @@ class Ticket(Base):
         index=True,
     )
     vehicle: Mapped["Vehicle | None"] = relationship("Vehicle", back_populates="tickets")
+
+    field_device_id: Mapped[int | None] = mapped_column(
+        ForeignKey("field_devices.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    field_device: Mapped["FieldDevice | None"] = relationship("FieldDevice", back_populates="tickets")

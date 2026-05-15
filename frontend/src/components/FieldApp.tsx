@@ -9,7 +9,7 @@ import { useVehicleStore } from "@/store/useVehicleStore";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { CameraCapture } from "@/components/CameraCapture";
-import { MockAuthGate } from "@/components/MockAuthGate";
+import { OperatorGate } from "@/components/OperatorGate";
 import { VehicleSelector } from "@/components/VehicleSelector";
 
 type Step = "auth" | "vehicle" | "camera" | "feedback" | "pending";
@@ -33,6 +33,7 @@ export function FieldApp() {
   }, []);
 
   const token = useSessionStore((s) => s.token);
+  const operatorName = useSessionStore((s) => s.operatorName);
   const vehicleId = useVehicleStore((s) => s.vehicleId);
   const patente = useVehicleStore((s) => s.patente);
   const clearVehicle = useVehicleStore((s) => s.clearVehicle);
@@ -139,6 +140,7 @@ export function FieldApp() {
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-field-accent">Fuel-Ops</p>
           <h1 className="text-lg font-semibold text-white">Modo campo</h1>
+          {operatorName ? <p className="text-xs text-zinc-500">Operario: {operatorName}</p> : null}
         </div>
         <div className="flex flex-col items-end gap-1 text-right text-xs text-zinc-400">
           <span
@@ -172,13 +174,13 @@ export function FieldApp() {
 
       <AnimatePresence mode="wait">
         {step === "auth" ? (
-          <motion.div key="auth" {...pageTransition} className="flex flex-1 flex-col">
-            <MockAuthGate onSuccess={handleAuthDone} />
-          </motion.div>
+          <div key="auth" {...pageTransition} className="flex flex-1 flex-col">
+            <OperatorGate onSuccess={handleAuthDone} />
+          </div>
         ) : null}
 
         {step === "vehicle" ? (
-          <motion.div key="vehicle" {...pageTransition} className="flex flex-1 flex-col">
+          <div key="vehicle" {...pageTransition} className="flex flex-1 flex-col">
             <VehicleSelector onSelected={handleVehicleChosen} />
             <button
               type="button"
@@ -190,11 +192,11 @@ export function FieldApp() {
             >
               Cerrar sesión
             </button>
-          </motion.div>
+          </div>
         ) : null}
 
         {step === "camera" && vehicleId != null && patente != null ? (
-          <motion.div key="camera" {...pageTransition} className="flex flex-1 flex-col">
+          <div key="camera" {...pageTransition} className="flex flex-1 flex-col">
             <div className="mb-4 flex items-center justify-between rounded-xl bg-field-surface px-4 py-3 text-sm ring-1 ring-field-border">
               <span className="text-zinc-300">
                 Vehículo <span className="font-mono text-white">{patente}</span>
@@ -211,11 +213,11 @@ export function FieldApp() {
               </button>
             </div>
             <CameraCapture vehicleId={vehicleId} patente={patente} onResult={handleCaptureResult} />
-          </motion.div>
+          </div>
         ) : null}
 
         {step === "feedback" && feedback ? (
-          <motion.div key={screenKey} {...pageTransition} className="flex flex-1 flex-col justify-center gap-6">
+          <div key={screenKey} {...pageTransition} className="flex flex-1 flex-col justify-center gap-6">
             {feedback.variant === "synced" ? (
               <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
                 <p className="text-sm font-medium text-emerald-300">Ticket registrado</p>
@@ -260,16 +262,16 @@ export function FieldApp() {
                 Otra captura
               </button>
             </div>
-          </motion.div>
+          </div>
         ) : null}
 
         {step === "pending" ? (
-          <motion.div key="pending" {...pageTransition} className="flex flex-1 flex-col">
+          <div key="pending" {...pageTransition} className="flex flex-1 flex-col">
             <PendingInbox
               onBack={() => setStep(vehicleId != null ? "camera" : "vehicle")}
               onChanged={() => void refreshPending()}
             />
-          </motion.div>
+          </div>
         ) : null}
       </AnimatePresence>
     </div>

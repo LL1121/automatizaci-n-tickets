@@ -207,6 +207,23 @@ export function AdminDashboard() {
         ),
       },
       {
+        accessorKey: "operador_nombre",
+        header: "Operario",
+        cell: ({ getValue }) => <span className="text-sm text-zinc-300">{(getValue() as string) ?? "—"}</span>,
+      },
+      {
+        accessorKey: "remito",
+        header: "Remito",
+        cell: ({ getValue }) => {
+          const v = getValue() as string | null;
+          return (
+            <span className={`font-mono text-sm ${v ? "text-zinc-300" : "text-zinc-500"}`}>
+              {v ?? "No encontrado"}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: "confidence_score",
         header: "IA %",
         cell: ({ getValue }) => {

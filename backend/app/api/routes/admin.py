@@ -41,8 +41,30 @@ SORT_ORDER = Literal["asc", "desc"]
 class TicketUpdateBody(BaseModel):
     litros: float | None = None
     kilometraje: int | None = None
+    remito: str | None = None
     fecha: datetime | None = None
     is_verified: bool | None = None
+
+
+def _ticket_row_dict(r: dict) -> dict[str, Any]:
+    return {
+        "id": r["id"],
+        "cuit_proveedor": r["cuit_proveedor"],
+        "nro_ticket": r["nro_ticket"],
+        "litros": float(r["litros"]) if r["litros"] is not None else None,
+        "kilometraje": r["kilometraje"],
+        "tipo_combustible": r.get("tipo_combustible"),
+        "remito": r.get("remito"),
+        "operador_nombre": r.get("operador_nombre"),
+        "fecha": r["fecha"].isoformat() if r["fecha"] else None,
+        "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
+        "url_imagen": r["url_imagen"],
+        "confidence_score": r["confidence_score"],
+        "is_verified": r["is_verified"],
+        "verified_at": r["verified_at"].isoformat() if r.get("verified_at") else None,
+        "vehicle_id": r["vehicle_id"],
+        "patente": r["patente"],
+    }
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -145,25 +167,7 @@ def admin_list_tickets(
         order_expr = order_col.asc().nulls_last()
 
     rows = db.execute(base.order_by(order_expr).limit(limit).offset(offset)).mappings().all()
-    items: list[dict[str, Any]] = []
-    for r in rows:
-        items.append(
-            {
-                "id": r["id"],
-                "cuit_proveedor": r["cuit_proveedor"],
-                "nro_ticket": r["nro_ticket"],
-                "litros": float(r["litros"]) if r["litros"] is not None else None,
-                "kilometraje": r["kilometraje"],
-                "fecha": r["fecha"].isoformat() if r["fecha"] else None,
-                "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
-                "url_imagen": r["url_imagen"],
-                "confidence_score": r["confidence_score"],
-                "is_verified": r["is_verified"],
-                "verified_at": r["verified_at"].isoformat() if r["verified_at"] else None,
-                "vehicle_id": r["vehicle_id"],
-                "patente": r["patente"],
-            }
-        )
+    items = [_ticket_row_dict(dict(r)) for r in rows]
     return {"total": int(total), "limit": limit, "offset": offset, "items": items}
 
 
@@ -176,6 +180,9 @@ def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str,
             Ticket.nro_ticket,
             Ticket.litros,
             Ticket.kilometraje,
+            Ticket.tipo_combustible,
+            Ticket.remito,
+            Ticket.operador_nombre,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.url_imagen,
@@ -191,22 +198,7 @@ def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str,
     ).mappings().one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
-    r = dict(row)
-    return {
-        "id": r["id"],
-        "cuit_proveedor": r["cuit_proveedor"],
-        "nro_ticket": r["nro_ticket"],
-        "litros": float(r["litros"]) if r["litros"] is not None else None,
-        "kilometraje": r["kilometraje"],
-        "fecha": r["fecha"].isoformat() if r["fecha"] else None,
-        "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
-        "url_imagen": r["url_imagen"],
-        "confidence_score": r["confidence_score"],
-        "is_verified": r["is_verified"],
-        "verified_at": r["verified_at"].isoformat() if r["verified_at"] else None,
-        "vehicle_id": r["vehicle_id"],
-        "patente": r["patente"],
-    }
+    return _ticket_row_dict(dict(row))
 
 
 @router.get("/tickets/{ticket_id}/image")
@@ -238,6 +230,13 @@ def admin_patch_ticket(
         t.litros = None if v is None else Decimal(str(v))
     if "kilometraje" in updates:
         t.kilometraje = updates["kilometraje"]
+    if "remito" in updates:
+        v = updates["remito"]
+        if v is None:
+            t.remito = None
+        else:
+            cleaned = str(v).strip()
+            t.remito = cleaned[:64] if cleaned else None
     if "fecha" in updates:
         v = updates["fecha"]
         if v is None:
@@ -281,6 +280,9 @@ def admin_export_monthly(
         "nro_ticket",
         "litros",
         "kilometraje",
+        "tipo_combustible",
+        "remito",
+        "operador",
         "fecha_ticket",
         "ingested_at",
         "confidence",
@@ -296,6 +298,9 @@ def admin_export_monthly(
                 r["nro_ticket"],
                 r["litros"],
                 r["kilometraje"],
+                r.get("tipo_combustible"),
+                r.get("remito") or "No encontrado",
+                r.get("operador_nombre") or "",
                 r["fecha"],
                 r["ingested_at"],
                 r["confidence_score"],
