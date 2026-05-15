@@ -26,7 +26,11 @@ class Settings(BaseSettings):
 
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
     upload_dir: Path = Field(default=Path("./uploads"), alias="UPLOAD_DIR")
-    gemini_model: str = Field(default="gemini-2.0-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(
+        default="gemini-2.0-flash-lite",
+        alias="GEMINI_MODEL",
+        description="Modelo con visión. Free tier: probar gemini-2.0-flash-lite.",
+    )
     seed_demo_vehicles_if_empty: bool = Field(
         default=True,
         alias="FUEL_OPS_SEED_VEHICLES",

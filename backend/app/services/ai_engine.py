@@ -58,6 +58,29 @@ class AIEngineError(RuntimeError):
     """Error controlado del servicio de IA."""
 
 
+class AIQuotaExceededError(AIEngineError):
+    """Cuota o rate limit de la API de Google (HTTP 429)."""
+
+
+def _google_error_message(exc: google_exceptions.GoogleAPIError) -> AIEngineError:
+    if isinstance(exc, google_exceptions.ResourceExhausted):
+        return AIQuotaExceededError(
+            "Cuota de Gemini agotada (plan gratuito o límite diario). "
+            "Probá más tarde, cambiá GEMINI_MODEL en .env (ej. gemini-2.0-flash-lite) "
+            "o activá facturación en Google AI Studio: https://aistudio.google.com/apikey"
+        )
+    if isinstance(exc, google_exceptions.NotFound):
+        return AIEngineError(
+            f"Modelo Gemini no disponible ({get_settings().gemini_model}). "
+            "Revisá GEMINI_MODEL en .env."
+        )
+    if isinstance(exc, google_exceptions.PermissionDenied):
+        return AIEngineError(
+            "API key de Google inválida o sin permiso para este modelo. Revisá GOOGLE_API_KEY."
+        )
+    return AIEngineError("Fallo la comunicación con el servicio de Gemini.")
+
+
 def _strip_json_fence(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -94,7 +117,7 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
         )
     except google_exceptions.GoogleAPIError as exc:
         logger.warning("Error de API de Google: %s", exc)
-        raise AIEngineError("Fallo la comunicación con el servicio de Gemini.") from exc
+        raise _google_error_message(exc) from exc
     except Exception as exc:  # noqa: BLE001 - SDK puede lanzar varios tipos
         logger.exception("Error inesperado al llamar a Gemini")
         raise AIEngineError("Error inesperado al procesar la imagen con IA.") from exc
