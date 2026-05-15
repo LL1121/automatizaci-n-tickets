@@ -29,7 +29,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-fuelops}:${POSTGRES_PASSWORD:-fuelops_dev}@db:5432/${POSTGRES_DB:-fuelops}
+      POSTGRES_USER: ${POSTGRES_USER:-fuelops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fuelops_dev}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-fuelops}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       UPLOAD_DIR: /data/uploads
       CORS_ORIGINS: ${CORS_ORIGINS:-}

@@ -21,6 +21,13 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    logging.getLogger(__name__).info(
+        "DB: user=%s host=%s db=%s",
+        settings.postgres_user,
+        settings.postgres_host,
+        settings.postgres_db,
+    )
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_demo_vehicles_if_configured(db)

@@ -1,8 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
-
-from pydantic import Field, PostgresDsn, field_validator
+from pydantic import Field, PostgresDsn, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.database_url import build_database_url
 
 
 class Settings(BaseSettings):
@@ -12,11 +13,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: PostgresDsn = Field(
-        ...,
+    database_url: PostgresDsn | None = Field(
+        default=None,
         alias="DATABASE_URL",
-        description="SQLAlchemy PostgreSQL connection URL",
+        description="URL completa. Si falta, se arma desde POSTGRES_* con encoding correcto.",
     )
+    postgres_user: str = Field(default="fuelops", alias="POSTGRES_USER")
+    postgres_password: str = Field(default="fuelops_dev", alias="POSTGRES_PASSWORD")
+    postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
+    postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
+    postgres_db: str = Field(default="fuelops", alias="POSTGRES_DB")
+
     google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
     upload_dir: Path = Field(default=Path("./uploads"), alias="UPLOAD_DIR")
     gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
@@ -35,6 +42,24 @@ class Settings(BaseSettings):
     @classmethod
     def coerce_upload_dir(cls, v: str | Path) -> Path:
         return Path(v)
+
+    @model_validator(mode="after")
+    def resolve_database_url(self) -> "Settings":
+        if self.database_url is not None:
+            return self
+        built = build_database_url(
+            user=self.postgres_user,
+            password=self.postgres_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
+        object.__setattr__(self, "database_url", built)
+        return self
+
+    @property
+    def database_user_for_log(self) -> str:
+        return self.postgres_user
 
 
 @lru_cache
