@@ -26,7 +26,8 @@ con estas claves exactas:
 - confidence_score: número entre 0 y 1 indicando confianza global en la extracción
 
 Reglas:
-- Si un campo no es legible, usá null (excepto cuit_proveedor y nro_ticket: hacé el mejor esfuerzo con string vacío solo si es ilegible).
+- cuit_proveedor y nro_ticket son OBLIGATORIOS: nunca uses string vacío. Si no podés leerlos, poné confidence_score en 0 y el mejor texto parcial que veas (aunque sea incompleto).
+- litros, monto y fecha: null si no se leen con confianza.
 - Los números deben ser JSON numbers, no strings.
 - No incluyas ninguna clave adicional."""
 
@@ -60,6 +61,10 @@ class AIEngineError(RuntimeError):
 
 class AIQuotaExceededError(AIEngineError):
     """Cuota o rate limit de la API de Google (HTTP 429)."""
+
+
+class AIExtractionIncompleteError(AIEngineError):
+    """La imagen no permitió leer CUIT o número de ticket."""
 
 
 def _google_error_message(exc: google_exceptions.GoogleAPIError) -> AIEngineError:
@@ -135,6 +140,15 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
     except json.JSONDecodeError as exc:
         logger.debug("JSON inválido del modelo: %s", raw[:500])
         raise AIEngineError("El modelo no devolvió JSON válido.") from exc
+
+    cuit = str(payload.get("cuit_proveedor") or "").strip()
+    nro = str(payload.get("nro_ticket") or "").strip()
+    if not cuit or not nro:
+        logger.info("Extracción incompleta (CUIT o ticket vacío): %s", payload)
+        raise AIExtractionIncompleteError(
+            "No se pudo leer el CUIT o el número de ticket en la foto. "
+            "Acercá el comprobante, usá buena luz, mantené la cámara quieta y volvé a capturar."
+        )
 
     try:
         return ExtractedTicketData.model_validate(payload)

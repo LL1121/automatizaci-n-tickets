@@ -3,6 +3,7 @@
 import { persistAndTryUpload } from "@/lib/sync-queue";
 import { UploadHttpError } from "@/lib/upload-ticket";
 import gsap from "gsap";
+import { motion } from "framer-motion";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 type Props = {
@@ -23,14 +24,27 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
   const scanLineRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [frozenUrl, setFrozenUrl] = useState<string | null>(null);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }, []);
 
+  const clearFreeze = useCallback(() => {
+    setFrozenUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    const v = videoRef.current;
+    if (v && v.srcObject) {
+      void v.play().catch(() => undefined);
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     setError(null);
+    clearFreeze();
     stopStream();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -46,14 +60,18 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
     } catch {
       setError("No se pudo acceder a la cámara. Revisá permisos del navegador.");
     }
-  }, [stopStream]);
+  }, [stopStream, clearFreeze]);
 
   useLayoutEffect(() => {
     void startCamera();
-    return () => stopStream();
-  }, [startCamera, stopStream]);
+    return () => {
+      stopStream();
+      clearFreeze();
+    };
+  }, [startCamera, stopStream, clearFreeze]);
 
   useLayoutEffect(() => {
+    if (frozenUrl) return;
     const line = scanLineRef.current;
     const host = scanHostRef.current;
     if (!line || !host) return;
@@ -78,11 +96,13 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
       ro.disconnect();
       gsap.killTweensOf(line);
     };
-  }, []);
+  }, [frozenUrl]);
 
-  const captureFrame = useCallback(async () => {
+  const freezeAndCapture = useCallback(async (): Promise<File | null> => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return null;
+
+    video.pause();
 
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -90,7 +110,8 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(video, 0, 0);
-    return new Promise<File | null>((resolve) => {
+
+    const file = await new Promise<File | null>((resolve) => {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
@@ -103,6 +124,20 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         0.92,
       );
     });
+
+    if (!file) return null;
+
+    const url = URL.createObjectURL(file);
+    setFrozenUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+
+    if (scanLineRef.current) {
+      gsap.killTweensOf(scanLineRef.current);
+    }
+
+    return file;
   }, [patente]);
 
   const shutter = async () => {
@@ -113,9 +148,10 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
       if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
         navigator.vibrate(50);
       }
-      const file = await captureFrame();
+      const file = await freezeAndCapture();
       if (!file) {
         setError("No se pudo capturar la imagen.");
+        clearFreeze();
         setBusy(false);
         return;
       }
@@ -126,10 +162,18 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         onResult({ mode: "queued", navigatorOffline: outcome.navigatorOffline });
       }
     } catch (e) {
+      clearFreeze();
       if (e instanceof UploadHttpError) {
+        let detail = e.body;
+        try {
+          const parsed = JSON.parse(e.body) as { detail?: string };
+          if (typeof parsed.detail === "string") detail = parsed.detail;
+        } catch {
+          /* body plano */
+        }
         onResult({
           mode: "error",
-          message: `${e.message}\n${e.body}`,
+          message: detail || e.message,
         });
       } else {
         onResult({ mode: "error", message: e instanceof Error ? e.message : String(e) });
@@ -139,23 +183,53 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
     }
   };
 
+  const isFrozen = frozenUrl != null;
+
   return (
     <div className="flex flex-1 flex-col gap-4">
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
-        <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+      <motion.div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className={`h-full w-full object-cover transition-opacity duration-150 ${
+            isFrozen ? "opacity-0" : "opacity-100"
+          }`}
+        />
 
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+        {frozenUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={frozenUrl}
+            alt="Captura del ticket"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+
+        {isFrozen ? (
+          <div className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
+        ) : null}
+
+        <motion.div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <div className="relative h-[72%] w-[88%] max-w-md">
-            <div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
+            <motion.div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
             <div ref={scanHostRef} className="absolute inset-[10%] overflow-hidden rounded-xl">
-              <div
-                ref={scanLineRef}
-                className="absolute left-0 right-0 top-0 h-[3px] rounded-full bg-field-accent shadow-[0_0_16px_#22d3ee,0_0_32px_rgba(34,211,238,0.35)]"
-              />
+              {!isFrozen ? (
+                <div
+                  ref={scanLineRef}
+                  className="absolute left-0 right-0 top-0 h-[3px] rounded-full bg-field-accent shadow-[0_0_16px_#22d3ee,0_0_32px_rgba(34,211,238,0.35)]"
+                />
+              ) : null}
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+
+        {isFrozen && busy ? (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-10">
+            <p className="text-center text-sm font-medium text-field-accent">Procesando captura…</p>
+          </div>
+        ) : null}
+      </motion.div>
 
       {error ? <p className="text-center text-sm text-field-danger">{error}</p> : null}
 
@@ -170,8 +244,9 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
       <button
         type="button"
+        disabled={busy}
         onClick={() => void startCamera()}
-        className="min-h-touch w-full rounded-xl border border-field-border py-3 text-sm text-zinc-400"
+        className="min-h-touch w-full rounded-xl border border-field-border py-3 text-sm text-zinc-400 disabled:opacity-50"
       >
         Reiniciar cámara
       </button>

@@ -19,7 +19,12 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
-from app.services.ai_engine import AIEngineError, AIQuotaExceededError, extract_ticket_from_image
+from app.services.ai_engine import (
+    AIEngineError,
+    AIExtractionIncompleteError,
+    AIQuotaExceededError,
+    extract_ticket_from_image,
+)
 from app.services.image_preprocess import ImagePreprocessError, preprocess_for_vision
 
 logger = logging.getLogger(__name__)
@@ -90,6 +95,11 @@ async def upload_ticket(
 
     try:
         extracted = extract_ticket_from_image(processed_png)
+    except AIExtractionIncompleteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     except AIQuotaExceededError as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
