@@ -4,7 +4,30 @@ import { persistAndTryUpload } from "@/lib/sync-queue";
 import { UploadHttpError } from "@/lib/upload-ticket";
 import gsap from "gsap";
 import { motion } from "framer-motion";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+
+/** Marco de guía como fracción del rectángulo visible del video (no del contenedor). */
+const GUIDE_WIDTH_RATIO = 0.76;
+const GUIDE_HEIGHT_RATIO = 0.58;
+
+type VideoLayout = { top: number; left: number; width: number; height: number };
+
+function measureVideoLayout(container: HTMLElement, video: HTMLVideoElement): VideoLayout | null {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  const scale = Math.min(cw / vw, ch / vh);
+  const width = vw * scale;
+  const height = vh * scale;
+  return {
+    left: (cw - width) / 2,
+    top: (ch - height) / 2,
+    width,
+    height,
+  };
+}
 
 type Props = {
   vehicleId: number;
@@ -18,10 +41,12 @@ type Props = {
 };
 
 export function CameraCapture({ vehicleId, patente, onResult }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanHostRef = useRef<HTMLDivElement>(null);
   const scanLineRef = useRef<HTMLDivElement>(null);
+  const [videoLayout, setVideoLayout] = useState<VideoLayout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [frozenUrl, setFrozenUrl] = useState<string | null>(null);
@@ -69,6 +94,28 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
       clearFreeze();
     };
   }, [startCamera, stopStream, clearFreeze]);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container || !video) return;
+
+    const update = () => {
+      const layout = measureVideoLayout(container, video);
+      setVideoLayout(layout);
+    };
+
+    update();
+    video.addEventListener("loadedmetadata", update);
+    video.addEventListener("resize", update);
+    const ro = new ResizeObserver(update);
+    ro.observe(container);
+    return () => {
+      video.removeEventListener("loadedmetadata", update);
+      video.removeEventListener("resize", update);
+      ro.disconnect();
+    };
+  }, [frozenUrl]);
 
   useLayoutEffect(() => {
     if (frozenUrl) return;
@@ -185,9 +232,21 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
   const isFrozen = frozenUrl != null;
 
+  const guideStyle: CSSProperties | undefined = videoLayout
+    ? {
+        top: videoLayout.top + (videoLayout.height * (1 - GUIDE_HEIGHT_RATIO)) / 2,
+        left: videoLayout.left + (videoLayout.width * (1 - GUIDE_WIDTH_RATIO)) / 2,
+        width: videoLayout.width * GUIDE_WIDTH_RATIO,
+        height: videoLayout.height * GUIDE_HEIGHT_RATIO,
+      }
+    : undefined;
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="relative mx-auto h-[min(46dvh,400px)] w-full max-w-[280px] shrink-0 overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
+    <div className="flex flex-1 flex-col gap-4">
+      <div
+        ref={containerRef}
+        className="relative aspect-[2/5] min-h-[min(78vh,720px)] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border"
+      >
         <video
           ref={videoRef}
           playsInline
@@ -210,8 +269,13 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           <div className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
         ) : null}
 
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-          <div className="relative h-[90%] w-[78%]">
+        <div
+          className={`pointer-events-none absolute ${
+            guideStyle ? "" : "inset-0 flex items-center justify-center p-6"
+          }`}
+          style={guideStyle}
+        >
+          <div className={`relative ${guideStyle ? "h-full w-full" : "h-[58%] w-[76%] max-w-sm"}`}>
             <motion.div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
             <div ref={scanHostRef} className="absolute inset-[10%] overflow-hidden rounded-xl">
               {!isFrozen ? (
@@ -237,7 +301,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         type="button"
         disabled={busy || Boolean(error)}
         onClick={() => void shutter()}
-        className="min-h-touch w-full shrink-0 rounded-2xl bg-field-accent py-3.5 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/25 disabled:opacity-50"
+        className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/25 disabled:opacity-50"
       >
         {busy ? "Procesando…" : "Capturar ticket"}
       </button>
@@ -246,7 +310,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         type="button"
         disabled={busy}
         onClick={() => void startCamera()}
-        className="min-h-touch w-full shrink-0 rounded-xl border border-field-border py-2.5 text-sm text-zinc-400 disabled:opacity-50"
+        className="min-h-touch w-full rounded-xl border border-field-border py-3 text-sm text-zinc-400 disabled:opacity-50"
       >
         Reiniciar cámara
       </button>

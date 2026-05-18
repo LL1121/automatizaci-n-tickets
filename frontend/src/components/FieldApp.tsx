@@ -196,8 +196,8 @@ export function FieldApp() {
         ) : null}
 
         {step === "camera" && vehicleId != null && patente != null ? (
-          <motion.div key="camera" {...pageTransition} className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl bg-field-surface px-4 py-2.5 text-sm ring-1 ring-field-border">
+          <div key="camera" {...pageTransition} className="flex flex-1 flex-col">
+            <div className="mb-4 flex items-center justify-between rounded-xl bg-field-surface px-4 py-3 text-sm ring-1 ring-field-border">
               <span className="text-zinc-300">
                 Vehículo <span className="font-mono text-white">{patente}</span>
               </span>
@@ -213,7 +213,7 @@ export function FieldApp() {
               </button>
             </div>
             <CameraCapture vehicleId={vehicleId} patente={patente} onResult={handleCaptureResult} />
-          </motion.div>
+          </div>
         ) : null}
 
         {step === "feedback" && feedback ? (
