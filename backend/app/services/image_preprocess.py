@@ -10,7 +10,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_MAX_EDGE_PX: Final[int] = 2048
+# Ticket recortado en app: no hace falta resolución enorme (menos tokens en Gemini).
+_MAX_EDGE_PX: Final[int] = 1280
+_JPEG_QUALITY: Final[int] = 85
 
 
 class ImagePreprocessError(ValueError):
@@ -50,9 +52,9 @@ def preprocess_for_vision(raw_bytes: bytes) -> bytes:
                 interpolation=cv2.INTER_AREA,
             )
 
-        ok, encoded = cv2.imencode(".png", gray)
+        ok, encoded = cv2.imencode(".jpg", gray, [int(cv2.IMWRITE_JPEG_QUALITY), _JPEG_QUALITY])
         if not ok:
-            raise ImagePreprocessError("OpenCV no pudo codificar la imagen a PNG.")
+            raise ImagePreprocessError("OpenCV no pudo codificar la imagen a JPEG.")
         return encoded.tobytes()
     except cv2.error as exc:  # pragma: no cover
         logger.exception("Fallo OpenCV durante el pre-procesamiento")

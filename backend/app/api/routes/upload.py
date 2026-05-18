@@ -205,7 +205,7 @@ async def upload_ticket(
     upload_root: Path = settings.upload_dir
     upload_root.mkdir(parents=True, exist_ok=True)
     file_id = uuid.uuid4().hex
-    dest = upload_root / f"{file_id}.png"
+    dest = upload_root / f"{file_id}.jpg"
     try:
         dest.write_bytes(processed_png)
     except OSError as exc:

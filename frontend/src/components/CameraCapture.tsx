@@ -1,5 +1,6 @@
 "use client";
 
+import { guideCropOnVideo } from "@/lib/camera-crop";
 import { persistAndTryUpload } from "@/lib/sync-queue";
 import { UploadHttpError } from "@/lib/upload-ticket";
 import gsap from "gsap";
@@ -105,16 +106,27 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
   const freezeAndCapture = useCallback(async (): Promise<File | null> => {
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0) return null;
+    const container = containerRef.current;
+    if (!video || !container || video.videoWidth === 0) return null;
 
     video.pause();
 
+    const { width: cw, height: ch } = container.getBoundingClientRect();
+    const crop = guideCropOnVideo(
+      cw,
+      ch,
+      video.videoWidth,
+      video.videoHeight,
+      GUIDE_WIDTH_RATIO,
+      GUIDE_HEIGHT_RATIO,
+    );
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = crop.sw;
+    canvas.height = crop.sh;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
 
     const file = await new Promise<File | null>((resolve) => {
       canvas.toBlob(
@@ -126,7 +138,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           resolve(new File([blob], `ticket-${patente}.jpg`, { type: "image/jpeg" }));
         },
         "image/jpeg",
-        0.92,
+        0.86,
       );
     });
 
@@ -213,7 +225,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           <img
             src={frozenUrl}
             alt="Captura del ticket"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-contain"
           />
         ) : null}
 

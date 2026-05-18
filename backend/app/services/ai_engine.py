@@ -162,7 +162,7 @@ def _coerce_ticket_payload(data: Any) -> dict[str, Any]:
 
 def _build_vision_parts(processed_png: bytes, *, expected_patente: str | None) -> list[Any]:
     parts: list[Any] = [
-        {"mime_type": "image/png", "data": processed_png},
+        {"mime_type": "image/jpeg", "data": processed_png},
     ]
     if expected_patente:
         parts.append(

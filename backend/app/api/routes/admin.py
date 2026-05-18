@@ -211,7 +211,8 @@ def admin_ticket_image(
     if t is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado.")
     path = _safe_image_path(settings, t.url_imagen)
-    return FileResponse(path, media_type="image/png", filename=path.name)
+    media_type = "image/jpeg" if path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
+    return FileResponse(path, media_type=media_type, filename=path.name)
 
 
 @router.patch("/tickets/{ticket_id}", status_code=status.HTTP_200_OK)
