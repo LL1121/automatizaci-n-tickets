@@ -1,4 +1,4 @@
-"""Semilla opcional de vehículos demo."""
+"""Semilla y alta idempotente de vehículos de la flota."""
 
 from __future__ import annotations
 
@@ -17,6 +17,29 @@ _DEMO_FLEET: tuple[tuple[str, float | None], ...] = (
     ("XY987ZZ", 55.0),
     ("AA000BB", 70.0),
 )
+
+# Patentes de la flota — editar acá y correr: python -m app.cli.ensure_fleet
+FLEET_PATENTES: tuple[tuple[str, float | None], ...] = (
+    ("AB123CD", 80.0),
+    ("XY987ZZ", 55.0),
+    ("AA000BB", 70.0),
+    ("AC 979 ML", 70.0),
+)
+
+
+def ensure_fleet_vehicles(db: Session) -> list[str]:
+    """Inserta patentes de la flota que aún no estén en la base. Devuelve las agregadas."""
+    added: list[str] = []
+    for patente, cap in FLEET_PATENTES:
+        exists = db.scalar(select(Vehicle.id).where(Vehicle.patente == patente))
+        if exists is not None:
+            continue
+        db.add(Vehicle(patente=patente, capacidad_tanque=cap))
+        added.append(patente)
+    if added:
+        db.commit()
+        logger.info("Flota: agregadas %d patente(s) nueva(s): %s", len(added), ", ".join(added))
+    return added
 
 
 def seed_demo_vehicles_if_configured(db: Session) -> None:

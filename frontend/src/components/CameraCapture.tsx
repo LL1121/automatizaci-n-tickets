@@ -186,8 +186,8 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
   const isFrozen = frozenUrl != null;
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <motion.div className="relative aspect-[2/5] min-h-[min(78vh,720px)] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="relative mx-auto h-[min(46dvh,400px)] w-full max-w-[280px] shrink-0 overflow-hidden rounded-2xl bg-black ring-1 ring-field-border">
         <video
           ref={videoRef}
           playsInline
@@ -210,8 +210,8 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           <div className="pointer-events-none absolute inset-0 bg-black/20" aria-hidden />
         ) : null}
 
-        <motion.div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-          <div className="relative h-[88%] w-[72%] max-w-sm">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+          <div className="relative h-[90%] w-[78%]">
             <motion.div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
             <div ref={scanHostRef} className="absolute inset-[10%] overflow-hidden rounded-xl">
               {!isFrozen ? (
@@ -222,14 +222,14 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
               ) : null}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {isFrozen && busy ? (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-10">
             <p className="text-center text-sm font-medium text-field-accent">Procesando captura…</p>
           </div>
         ) : null}
-      </motion.div>
+      </div>
 
       {error ? <p className="text-center text-sm text-field-danger">{error}</p> : null}
 
@@ -237,7 +237,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         type="button"
         disabled={busy || Boolean(error)}
         onClick={() => void shutter()}
-        className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/25 disabled:opacity-50"
+        className="min-h-touch w-full shrink-0 rounded-2xl bg-field-accent py-3.5 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/25 disabled:opacity-50"
       >
         {busy ? "Procesando…" : "Capturar ticket"}
       </button>
@@ -246,7 +246,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         type="button"
         disabled={busy}
         onClick={() => void startCamera()}
-        className="min-h-touch w-full rounded-xl border border-field-border py-3 text-sm text-zinc-400 disabled:opacity-50"
+        className="min-h-touch w-full shrink-0 rounded-xl border border-field-border py-2.5 text-sm text-zinc-400 disabled:opacity-50"
       >
         Reiniciar cámara
       </button>
