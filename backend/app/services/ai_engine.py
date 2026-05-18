@@ -130,6 +130,37 @@ def _strip_json_fence(text: str) -> str:
     return text.strip()
 
 
+_TICKET_FIELD_KEYS = frozenset({"cuit_proveedor", "nro_ticket", "patente"})
+
+
+def _looks_like_ticket_payload(data: dict[str, Any]) -> bool:
+    return bool(_TICKET_FIELD_KEYS & data.keys())
+
+
+def _coerce_ticket_payload(data: Any) -> dict[str, Any]:
+    """
+    Gemini a veces devuelve [{...}] o {"tickets": [{...}]} en lugar de un objeto plano.
+    """
+    if isinstance(data, list):
+        for item in data:
+            try:
+                return _coerce_ticket_payload(item)
+            except AIEngineError:
+                continue
+        raise AIEngineError("El modelo devolvió una lista sin datos de ticket válidos.")
+
+    if isinstance(data, dict):
+        if _looks_like_ticket_payload(data):
+            return data
+        for key in ("ticket", "tickets", "result", "data", "comprobante", "items"):
+            inner = data.get(key)
+            if inner is not None:
+                return _coerce_ticket_payload(inner)
+        return data
+
+    raise AIEngineError("El modelo no devolvió un objeto JSON con los campos del ticket.")
+
+
 def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
     """
     Envía la imagen ya pre-procesada a Gemini y valida el JSON devuelto.
@@ -172,10 +203,16 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
 
     raw = _strip_json_fence(text)
     try:
-        payload: dict[str, Any] = json.loads(raw)
+        parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
         logger.debug("JSON inválido del modelo: %s", raw[:500])
         raise AIEngineError("El modelo no devolvió JSON válido.") from exc
+
+    try:
+        payload = _coerce_ticket_payload(parsed)
+    except AIEngineError:
+        logger.info("JSON del modelo con forma inesperada: %s", type(parsed).__name__)
+        raise
 
     cuit = str(payload.get("cuit_proveedor") or "").strip()
     nro = str(payload.get("nro_ticket") or "").strip()
