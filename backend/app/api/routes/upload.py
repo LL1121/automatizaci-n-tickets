@@ -142,7 +142,10 @@ async def upload_ticket(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     try:
-        extracted = extract_ticket_from_image(processed_png)
+        extracted = extract_ticket_from_image(
+            processed_png,
+            expected_patente=vehicle_patente,
+        )
     except AIExtractionIncompleteError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

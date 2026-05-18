@@ -12,36 +12,35 @@ from google.api_core import exceptions as google_exceptions
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import get_settings
+from app.services.plate import normalize_patente
 
 logger = logging.getLogger(__name__)
 
 SYSTEM_INSTRUCTION = """Sos un extractor de datos para tickets de combustible YPF EN RUTA (Argentina).
-Analizá la imagen del ticket térmico (suele ser alto y angosto) y devolvé ÚNICAMENTE un objeto JSON válido
-(sin markdown, sin comentarios) con estas claves exactas:
+Analizá UNA imagen del ticket térmico (alto y angosto) y devolvé ÚNICAMENTE un objeto JSON válido
+(sin markdown) con estas claves exactas:
 
-- cuit_proveedor: string, CUIT del proveedor/estación (11 dígitos si podés, con o sin guiones)
-- nro_ticket: string, número de comprobante o transacción visible en el ticket
-- patente: string, valor junto a la etiqueta "Patente:" (ej. AG975ZC, AC979ML). Solo la patente, sin "Patente:"
-- kilometraje: entero, odómetro al lado de "Km:" o "Km." (solo dígitos, sin separadores de miles)
-- litros: número decimal, valor numérico debajo de la columna "CANT" (litros cargados del producto).
-- remito: string o null, número junto a la etiqueta "REMITO" si aparece en el ticket (a veces no está).
-- fecha: string ISO 8601 con zona -03:00. Preferí "Fecha Impresion" del pie; si no, la fecha/hora del encabezado.
-- confidence_score: número entre 0 y 1 (confianza global)
+- cuit_proveedor: string, CUIT del proveedor/estación (11 dígitos si podés)
+- nro_ticket: string, número de comprobante o transacción
+- patente: string, valor junto a "Patente:" (solo la patente, sin la etiqueta)
+- kilometraje: entero, odómetro junto a "Km:" o "Km." (solo dígitos)
+- litros: número decimal, valor bajo la columna "CANT"
+- remito: string o null, junto a "REMITO" si aparece
+- fecha: string ISO 8601 con zona -03:00 (preferí "Fecha Impresion" del pie)
+- confidence_score: número entre 0 y 1
 
-Reglas YPF EN RUTA:
-- cuit_proveedor, nro_ticket y patente son OBLIGATORIOS: nunca string vacío.
-- litros: obligatorio si la columna CANT es legible; si no, null.
-- kilometraje: si no se lee, null (no inventes).
-- remito: null si no hay etiqueta REMITO o no es legible (no inventes).
-- fecha: obligatoria si está legible en el ticket; formato ISO (ej. 2026-05-14T12:05:21-03:00).
-- Los tickets NO traen monto en pesos: no incluyas monto ni campos de importe.
-- El combustible es INFINIA DIESEL: no hace falta devolverlo en el JSON.
-- patente: mayúsculas, sin espacios internos salvo que en el ticket vengan (normalizá quitando espacios).
-- kilometraje debe ser JSON integer, litros JSON number.
-- No incluyas ninguna clave adicional."""
+OCR en tickets térmicos — leé carácter por carácter; evitá confusiones:
+- C vs G, O vs 0, I/L vs 1, S vs 5, B vs 8, Z vs 2, M vs N
+- Patentes Mercosur: 2 letras + 3 dígitos + 2 letras (ej. AC979ML)
+- Si hay varios tickets en la hoja, extraé SOLO el que está centrado/encuadrado en la foto
+
+Reglas:
+- cuit_proveedor, nro_ticket y patente son OBLIGATORIOS
+- No incluyas monto en pesos ni claves extra
+- kilometraje: integer o null; litros: number o null; remito: null si no hay REMITO legible"""
 
 USER_PROMPT = (
-    "Extraé los datos del ticket YPF EN RUTA según el esquema. "
+    "Extraé los datos del ticket YPF EN RUTA. "
     "Buscá Patente:, Km:, columna CANT (litros), REMITO (si existe) y Fecha Impresion."
 )
 
@@ -161,13 +160,31 @@ def _coerce_ticket_payload(data: Any) -> dict[str, Any]:
     raise AIEngineError("El modelo no devolvió un objeto JSON con los campos del ticket.")
 
 
-def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
-    """
-    Envía la imagen ya pre-procesada a Gemini y valida el JSON devuelto.
-    """
+def _build_vision_parts(processed_png: bytes, *, expected_patente: str | None) -> list[Any]:
+    parts: list[Any] = [
+        {"mime_type": "image/png", "data": processed_png},
+    ]
+    if expected_patente:
+        parts.append(
+            f"El operador seleccionó el vehículo {expected_patente}. "
+            "La patente junto a «Patente:» debe coincidir (revisá C/G, 9/5, M/Z, O/0)."
+        )
+    parts.append(USER_PROMPT)
+    return parts
+
+
+def extract_ticket_from_image(
+    processed_png: bytes,
+    *,
+    expected_patente: str | None = None,
+) -> ExtractedTicketData:
+    """Envía una imagen pre-procesada a Gemini y valida el JSON devuelto."""
     settings = get_settings()
     if not settings.google_api_key:
         raise AIEngineError("GOOGLE_API_KEY no está configurada.")
+
+    hint = normalize_patente(expected_patente) if expected_patente else None
+    content_parts = _build_vision_parts(processed_png, expected_patente=hint)
 
     genai.configure(api_key=settings.google_api_key)
 
@@ -178,19 +195,16 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
 
     try:
         response = model.generate_content(
-            [
-                {"mime_type": "image/png", "data": processed_png},
-                USER_PROMPT,
-            ],
+            content_parts,
             generation_config=genai.GenerationConfig(
-                temperature=0.1,
+                temperature=0.05,
                 response_mime_type="application/json",
             ),
         )
     except google_exceptions.GoogleAPIError as exc:
         logger.warning("Error de API de Google: %s", exc)
         raise _google_error_message(exc) from exc
-    except Exception as exc:  # noqa: BLE001 - SDK puede lanzar varios tipos
+    except Exception as exc:  # noqa: BLE001
         logger.exception("Error inesperado al llamar a Gemini")
         raise AIEngineError("Error inesperado al procesar la imagen con IA.") from exc
 
@@ -221,7 +235,7 @@ def extract_ticket_from_image(processed_png: bytes) -> ExtractedTicketData:
         logger.info("Extracción incompleta (CUIT, ticket o patente vacío): %s", payload)
         raise AIExtractionIncompleteError(
             "No se pudo leer el CUIT, el número de ticket o la patente en la foto. "
-            "Encuadrá todo el ticket (es alto), usá buena luz y volvé a capturar."
+            "Encuadrá un solo ticket con buena luz y volvé a capturar."
         )
 
     try:
