@@ -4,30 +4,11 @@ import { persistAndTryUpload } from "@/lib/sync-queue";
 import { UploadHttpError } from "@/lib/upload-ticket";
 import gsap from "gsap";
 import { motion } from "framer-motion";
-import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
-/** Marco de guía como fracción del rectángulo visible del video (no del contenedor). */
-const GUIDE_WIDTH_RATIO = 0.76;
-const GUIDE_HEIGHT_RATIO = 0.58;
-
-type VideoLayout = { top: number; left: number; width: number; height: number };
-
-function measureVideoLayout(container: HTMLElement, video: HTMLVideoElement): VideoLayout | null {
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  if (!vw || !vh) return null;
-  const cw = container.clientWidth;
-  const ch = container.clientHeight;
-  const scale = Math.min(cw / vw, ch / vh);
-  const width = vw * scale;
-  const height = vh * scale;
-  return {
-    left: (cw - width) / 2,
-    top: (ch - height) / 2,
-    width,
-    height,
-  };
-}
+/** Marco de guía como fracción del visor (ticket alto y angosto). */
+const GUIDE_WIDTH_RATIO = 0.46;
+const GUIDE_HEIGHT_RATIO = 0.84;
 
 type Props = {
   vehicleId: number;
@@ -46,7 +27,6 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const scanHostRef = useRef<HTMLDivElement>(null);
   const scanLineRef = useRef<HTMLDivElement>(null);
-  const [videoLayout, setVideoLayout] = useState<VideoLayout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [frozenUrl, setFrozenUrl] = useState<string | null>(null);
@@ -94,28 +74,6 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
       clearFreeze();
     };
   }, [startCamera, stopStream, clearFreeze]);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const video = videoRef.current;
-    if (!container || !video) return;
-
-    const update = () => {
-      const layout = measureVideoLayout(container, video);
-      setVideoLayout(layout);
-    };
-
-    update();
-    video.addEventListener("loadedmetadata", update);
-    video.addEventListener("resize", update);
-    const ro = new ResizeObserver(update);
-    ro.observe(container);
-    return () => {
-      video.removeEventListener("loadedmetadata", update);
-      video.removeEventListener("resize", update);
-      ro.disconnect();
-    };
-  }, [frozenUrl]);
 
   useLayoutEffect(() => {
     if (frozenUrl) return;
@@ -232,26 +190,20 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
   const isFrozen = frozenUrl != null;
 
-  const guideStyle: CSSProperties | undefined = videoLayout
-    ? {
-        top: videoLayout.top + (videoLayout.height * (1 - GUIDE_HEIGHT_RATIO)) / 2,
-        left: videoLayout.left + (videoLayout.width * (1 - GUIDE_WIDTH_RATIO)) / 2,
-        width: videoLayout.width * GUIDE_WIDTH_RATIO,
-        height: videoLayout.height * GUIDE_HEIGHT_RATIO,
-      }
-    : undefined;
+  const guideInsetX = `${((1 - GUIDE_WIDTH_RATIO) / 2) * 100}%`;
+  const guideInsetY = `${((1 - GUIDE_HEIGHT_RATIO) / 2) * 100}%`;
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <motion.div className="relative flex min-h-0 flex-1 flex-col">
       <div
         ref={containerRef}
-        className="relative aspect-[2/5] min-h-[min(78vh,720px)] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-field-border"
+        className="relative min-h-[min(72dvh,680px)] w-full flex-1 overflow-hidden rounded-2xl bg-black ring-1 ring-field-border aspect-[3/4]"
       >
         <video
           ref={videoRef}
           playsInline
           muted
-          className={`h-full w-full object-contain transition-opacity duration-150 ${
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-150 ${
             isFrozen ? "opacity-0" : "opacity-100"
           }`}
         />
@@ -261,7 +213,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           <img
             src={frozenUrl}
             alt="Captura del ticket"
-            className="absolute inset-0 h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : null}
 
@@ -270,14 +222,17 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         ) : null}
 
         <div
-          className={`pointer-events-none absolute ${
-            guideStyle ? "" : "inset-0 flex items-center justify-center p-6"
-          }`}
-          style={guideStyle}
+          className="pointer-events-none absolute"
+          style={{
+            top: guideInsetY,
+            left: guideInsetX,
+            right: guideInsetX,
+            bottom: guideInsetY,
+          }}
         >
-          <div className={`relative ${guideStyle ? "h-full w-full" : "h-[58%] w-[76%] max-w-sm"}`}>
-            <motion.div className="absolute inset-0 rounded-2xl border-2 border-white/35 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.15)]" />
-            <div ref={scanHostRef} className="absolute inset-[10%] overflow-hidden rounded-xl">
+          <div className="relative h-full w-full">
+            <motion.div className="absolute inset-0 rounded-xl border-2 border-white/40 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]" />
+            <div ref={scanHostRef} className="absolute inset-[8%] overflow-hidden rounded-lg">
               {!isFrozen ? (
                 <div
                   ref={scanLineRef}
@@ -289,31 +244,43 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         </div>
 
         {isFrozen && busy ? (
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-10">
+          <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 to-transparent px-4 pb-6 pt-4">
             <p className="text-center text-sm font-medium text-field-accent">Procesando captura…</p>
           </div>
         ) : null}
+
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void startCamera()}
+          className="absolute left-3 top-3 z-20 rounded-full border border-white/20 bg-black/55 px-3 py-1.5 text-xs font-medium text-zinc-200 backdrop-blur-sm disabled:opacity-50"
+        >
+          Reiniciar
+        </button>
+
+        <button
+          type="button"
+          disabled={busy || Boolean(error)}
+          onClick={() => void shutter()}
+          aria-label={busy ? "Procesando captura" : "Capturar ticket"}
+          className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-field-accent text-field-bg shadow-[0_4px_24px_rgba(34,211,238,0.45)] ring-4 ring-black/30 disabled:opacity-50"
+        >
+          {busy ? (
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-field-bg/30 border-t-field-bg" />
+          ) : (
+            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
+              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+              <circle cx="12" cy="12" r="4" />
+            </svg>
+          )}
+        </button>
       </div>
 
-      {error ? <p className="text-center text-sm text-field-danger">{error}</p> : null}
-
-      <button
-        type="button"
-        disabled={busy || Boolean(error)}
-        onClick={() => void shutter()}
-        className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/25 disabled:opacity-50"
-      >
-        {busy ? "Procesando…" : "Capturar ticket"}
-      </button>
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void startCamera()}
-        className="min-h-touch w-full rounded-xl border border-field-border py-3 text-sm text-zinc-400 disabled:opacity-50"
-      >
-        Reiniciar cámara
-      </button>
-    </div>
+      {error ? (
+        <p className="absolute bottom-2 left-2 right-[5.5rem] z-20 rounded-lg bg-black/70 px-3 py-2 text-center text-xs text-field-danger backdrop-blur-sm">
+          {error}
+        </p>
+      ) : null}
+    </motion.div>
   );
 }
