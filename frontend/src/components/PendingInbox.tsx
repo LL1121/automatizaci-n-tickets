@@ -6,7 +6,8 @@ import {
   retryPendingTicket,
   type FlushResult,
 } from "@/lib/sync-queue";
-import { motion } from "framer-motion";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Props = {
@@ -21,7 +22,7 @@ function statusLabel(row: PendingTicketRecord): string {
     case "uploading":
       return "Subiendo…";
     case "quota_blocked":
-      return "Cuota IA agotada";
+      return "Límite temporal";
     case "failed":
       return "Error";
     default:
@@ -54,6 +55,7 @@ export function PendingInbox({ onBack, onChanged }: Props) {
   const [preview, setPreview] = useState<PendingTicketRecord | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const thumbUrls = useMemo(() => {
     const map = new Map<string, string>();
@@ -121,8 +123,8 @@ export function PendingInbox({ onBack, onChanged }: Props) {
   };
 
   const removeOne = async (id: string) => {
-    if (!window.confirm("¿Eliminar este ticket pendiente del dispositivo?")) return;
     await deleteInboxTicket(id);
+    setConfirmDeleteId(null);
     await load();
     onChanged?.();
   };
@@ -139,8 +141,7 @@ export function PendingInbox({ onBack, onChanged }: Props) {
         </button>
         <h2 className="text-2xl font-semibold text-brand">Pendientes</h2>
         <p className="mt-2 text-sm text-field-muted">
-          Las fotos se suben <strong className="font-medium text-field-text">solo cuando tocás Subir</strong> (una por
-          vez, para no gastar cuota de IA).
+          Las fotos se suben <strong className="font-medium text-field-text">solo cuando tocás Subir</strong>, una por vez.
         </p>
       </div>
 
@@ -208,13 +209,13 @@ export function PendingInbox({ onBack, onChanged }: Props) {
                           onClick={() => void uploadOne(row.id)}
                           className="btn-primary min-h-touch flex-1 !py-2 text-sm disabled:opacity-50"
                         >
-                          {busy ? "Subiendo…" : "Subir (1 token)"}
+                          {busy ? "Subiendo…" : "Subir"}
                         </button>
                       ) : null}
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => void removeOne(row.id)}
+                        onClick={() => setConfirmDeleteId(row.id)}
                         className="btn-secondary min-h-touch !py-2 text-sm"
                       >
                         Eliminar
@@ -228,28 +229,26 @@ export function PendingInbox({ onBack, onChanged }: Props) {
         </ul>
       )}
 
-      {preview && previewUrl ? (
-        <motion.div
-          className="fixed inset-0 z-50 flex flex-col bg-black/90 p-4 safe-pt safe-pb"
-          role="dialog"
-          aria-modal="true"
-        >
-          <button
-            type="button"
-            onClick={closePreview}
-            className="mb-4 self-start text-sm text-white underline"
-          >
-            Cerrar
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={previewUrl}
-            alt="Vista del ticket"
-            className="mx-auto max-h-[70dvh] w-full object-contain"
-          />
-          <p className="mt-4 text-center font-mono text-sm text-zinc-300">{preview.patente}</p>
-        </motion.div>
-      ) : null}
+      <ImageLightbox
+        open={Boolean(preview && previewUrl)}
+        src={previewUrl ?? ""}
+        alt="Vista del ticket"
+        title={preview ? `Pendiente · ${preview.patente || "sin patente"}` : undefined}
+        onClose={closePreview}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteId != null}
+        title="¿Eliminar ticket?"
+        message="Se borrará este ticket pendiente del dispositivo. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onCancel={() => setConfirmDeleteId(null)}
+        onConfirm={() => {
+          if (confirmDeleteId) void removeOne(confirmDeleteId);
+        }}
+      />
     </div>
   );
 }

@@ -230,7 +230,7 @@ export function FieldApp() {
                 <p className="mt-2 text-sm text-field-muted">
                   {feedback.navigatorOffline
                     ? "No hay red ahora. Entrá a Pendientes y subí la foto cuando tengas conexión (una por vez)."
-                    : "Quedó guardado en Pendientes. Subilo manualmente desde ahí para no gastar cuota de IA en bucles."}
+                    : "Quedó guardado en Pendientes. Subilo manualmente desde ahí cuando quieras enviarlo al servidor."}
                 </p>
               </div>
             ) : null}

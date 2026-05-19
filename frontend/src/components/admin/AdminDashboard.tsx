@@ -21,8 +21,6 @@ import {
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const LOW_CONF = 0.75;
-
 const MONTH_NAMES_ES = [
   "enero",
   "febrero",
@@ -225,18 +223,6 @@ export function AdminDashboard() {
         },
       },
       {
-        accessorKey: "confidence_score",
-        header: "IA %",
-        cell: ({ getValue }) => {
-          const v = getValue() as number | null;
-          return (
-            <span className={`text-sm tabular-nums ${v != null && v < LOW_CONF ? "text-field-danger" : "text-field-muted"}`}>
-              {v != null ? `${(v * 100).toFixed(0)}%` : "—"}
-            </span>
-          );
-        },
-      },
-      {
         accessorKey: "is_verified",
         header: "Estado",
         cell: ({ getValue }) =>
@@ -255,7 +241,6 @@ export function AdminDashboard() {
   const rowTone = (r: AdminTicketRow, index: number) => {
     const alt = index % 2 === 1 ? "bg-field-surface" : "bg-white";
     if (r.is_verified) return `${alt} hover:bg-brand-light/40`;
-    if (r.confidence_score != null && r.confidence_score < LOW_CONF) return "bg-red-50 hover:bg-red-100/80";
     return `${alt} hover:bg-brand-light/50`;
   };
 
@@ -351,7 +336,7 @@ export function AdminDashboard() {
             <p className="text-sm text-field-muted">Revisión y verificación de comprobantes</p>
           </div>
           <span className="text-xs text-field-muted">
-            Mostrando {tickets.length} de {totalTickets} · Confianza baja (&lt; {(LOW_CONF * 100).toFixed(0)}%) resaltada
+            Mostrando {tickets.length} de {totalTickets}
           </span>
         </div>
         <div className="overflow-x-auto">

@@ -34,7 +34,7 @@ export type FlushOptions = {
 function friendlyError(e: unknown): string {
   if (e instanceof UploadHttpError) {
     if (isQuotaBlockedError(e)) {
-      return "Cuota de IA agotada. Subí manualmente más tarde o cambiá el plan de Gemini.";
+      return "El servicio de lectura no está disponible ahora. Probá de nuevo más tarde desde Pendientes.";
     }
     return `${e.status}: ${e.body.slice(0, 120) || e.message}`;
   }
