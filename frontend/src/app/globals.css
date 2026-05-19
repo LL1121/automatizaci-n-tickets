@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  @apply min-h-dvh bg-field-bg text-zinc-100 antialiased;
+  @apply min-h-dvh bg-field-bg text-field-text antialiased;
 }
 
 /* Safe area for notched phones */
@@ -17,4 +17,22 @@ body {
 
 .safe-pt {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-touch items-center justify-center rounded-lg bg-field-accent px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-field-accent;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-touch items-center justify-center rounded-lg border border-field-border bg-white px-5 text-sm font-medium text-field-muted transition hover:border-brand/40 hover:text-field-accent;
+  }
+
+  .card {
+    @apply rounded-xl border border-field-border bg-white shadow-card;
+  }
+
+  .input-field {
+    @apply min-h-touch w-full rounded-lg border border-field-border bg-white px-4 text-base text-field-text outline-none transition placeholder:text-gray-400 focus:border-field-accent focus:ring-2 focus:ring-brand-light;
+  }
 }

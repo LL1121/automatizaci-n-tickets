@@ -58,8 +58,8 @@ export function OperatorGate({ onSuccess }: Props) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        <p className="text-sm text-zinc-400">Identificando dispositivo…</p>
-        {operatorName ? <p className="font-medium text-white">{operatorName}</p> : null}
+        <p className="text-sm text-field-muted">Identificando dispositivo…</p>
+        {operatorName ? <p className="font-medium text-field-text">{operatorName}</p> : null}
       </motion.div>
     );
   }
@@ -74,13 +74,13 @@ export function OperatorGate({ onSuccess }: Props) {
       animate={{ opacity: 1, y: 0 }}
     >
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Bienvenido</h2>
-        <p className="mt-2 text-sm text-zinc-400">
-          Este celular quedará vinculado a tu nombre. ID dispositivo: <span className="font-mono text-zinc-300">{deviceHint}…</span>
+        <h2 className="text-2xl font-semibold tracking-tight text-brand">Bienvenido</h2>
+        <p className="mt-2 text-sm text-field-muted">
+          Este celular quedará vinculado a tu nombre. ID dispositivo: <span className="font-mono text-field-text">{deviceHint}…</span>
         </p>
       </div>
       <div>
-        <label htmlFor="op" className="mb-2 block text-sm text-zinc-400">
+        <label htmlFor="op" className="mb-2 block text-sm text-field-muted">
           Tu nombre
         </label>
         <input
@@ -88,14 +88,14 @@ export function OperatorGate({ onSuccess }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
-          className="min-h-touch w-full rounded-xl border border-field-border bg-field-surface px-4 text-base text-white outline-none ring-field-accent/40 placeholder:text-zinc-600 focus:ring-2"
+          className="input-field"
           placeholder="Ej. Lautaro"
         />
         {error ? <p className="mt-2 text-sm text-field-danger">{error}</p> : null}
       </div>
       <button
         type="submit"
-        className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg shadow-lg shadow-field-accent/20"
+        className="btn-primary min-h-touch w-full py-4 text-base"
       >
         Continuar
       </button>

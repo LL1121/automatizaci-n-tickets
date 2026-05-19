@@ -138,14 +138,14 @@ export function FieldApp() {
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-8 pt-4">
       <header className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-field-accent">Fuel-Ops</p>
-          <h1 className="text-lg font-semibold text-white">Modo campo</h1>
-          {operatorName ? <p className="text-xs text-zinc-500">Operario: {operatorName}</p> : null}
+          <p className="text-xs font-medium uppercase tracking-widest text-brand">Irrigación · Fuel-Ops</p>
+          <h1 className="text-lg font-semibold text-field-text">Modo campo</h1>
+          {operatorName ? <p className="text-xs text-field-muted">Operario: {operatorName}</p> : null}
         </div>
-        <div className="flex flex-col items-end gap-1 text-right text-xs text-zinc-400">
+        <div className="flex flex-col items-end gap-1 text-right text-xs text-field-muted">
           <span
             className={
-              online ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-400" : "rounded-full bg-rose-500/15 px-2 py-0.5 text-rose-400"
+              online ? "rounded-full bg-status-verifiedBg px-2 py-0.5 text-status-verifiedText" : "rounded-full bg-red-100 px-2 py-0.5 text-red-700"
             }
           >
             {online ? "En línea" : "Sin conexión"}
@@ -156,8 +156,8 @@ export function FieldApp() {
               onClick={() => setStep("pending")}
               className={`rounded-full px-2 py-0.5 font-medium ${
                 pendingCount > 0
-                  ? "bg-amber-500/20 text-amber-300"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "bg-status-pendingBg text-status-pendingText"
+                  : "text-field-muted hover:text-field-accent"
               }`}
             >
               Pendientes{pendingCount > 0 ? `: ${pendingCount}` : ""}
@@ -167,7 +167,7 @@ export function FieldApp() {
       </header>
 
       {toast ? (
-        <div className="mb-4 rounded-xl border border-field-border bg-field-surface px-4 py-3 text-sm text-field-accent">
+        <div className="mb-4 rounded-xl border border-brand/20 bg-brand-light px-4 py-3 text-sm text-brand">
           {toast}
         </div>
       ) : null}
@@ -188,7 +188,7 @@ export function FieldApp() {
                 logout();
                 clearVehicle();
               }}
-              className="mt-6 min-h-touch w-full rounded-xl border border-field-border bg-transparent py-3 text-sm text-zinc-400"
+              className="btn-secondary mt-6 w-full"
             >
               Cerrar sesión
             </button>
@@ -198,8 +198,8 @@ export function FieldApp() {
         {step === "camera" && vehicleId != null && patente != null ? (
           <motion.div key="camera" {...pageTransition} className="flex min-h-0 flex-1 flex-col">
             <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl bg-field-surface px-4 py-2.5 text-sm ring-1 ring-field-border">
-              <span className="text-zinc-300">
-                Vehículo <span className="font-mono text-white">{patente}</span>
+              <span className="text-field-muted">
+                Vehículo <span className="font-mono font-medium text-field-text">{patente}</span>
               </span>
               <button
                 type="button"
@@ -219,15 +219,15 @@ export function FieldApp() {
         {step === "feedback" && feedback ? (
           <div key={screenKey} {...pageTransition} className="flex flex-1 flex-col justify-center gap-6">
             {feedback.variant === "synced" ? (
-              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
-                <p className="text-sm font-medium text-emerald-300">Ticket registrado</p>
-                <p className="mt-2 text-sm text-zinc-400">El servidor procesó y guardó el comprobante.</p>
+              <div className="card p-6 text-center">
+                <p className="text-sm font-medium text-status-verifiedText">Ticket registrado</p>
+                <p className="mt-2 text-sm text-field-muted">El servidor procesó y guardó el comprobante.</p>
               </div>
             ) : null}
             {feedback.variant === "offline" ? (
-              <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-6 text-center">
-                <p className="text-sm font-medium text-amber-200">Guardado en este dispositivo</p>
-                <p className="mt-2 text-sm text-zinc-400">
+              <div className="card border-status-pendingBg bg-status-pendingBg p-6 text-center">
+                <p className="text-sm font-medium text-status-pendingText">Guardado en este dispositivo</p>
+                <p className="mt-2 text-sm text-field-muted">
                   {feedback.navigatorOffline
                     ? "No hay red ahora. Entrá a Pendientes y subí la foto cuando tengas conexión (una por vez)."
                     : "Quedó guardado en Pendientes. Subilo manualmente desde ahí para no gastar cuota de IA en bucles."}
@@ -235,9 +235,9 @@ export function FieldApp() {
               </div>
             ) : null}
             {feedback.variant === "error" ? (
-              <div className="rounded-2xl border border-rose-500/35 bg-rose-500/10 p-6 text-center">
-                <p className="text-sm font-medium text-rose-200">No se pudo registrar</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-400">{feedback.message}</p>
+              <div className="card border-red-200 bg-red-50 p-6 text-center">
+                <p className="text-sm font-medium text-red-800">No se pudo registrar</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-field-muted">{feedback.message}</p>
               </div>
             ) : null}
             <div className="flex flex-col gap-3">
@@ -257,7 +257,7 @@ export function FieldApp() {
                   setFeedback(null);
                   setStep("camera");
                 }}
-                className="min-h-touch w-full rounded-2xl bg-field-accent py-4 text-base font-semibold text-field-bg"
+                className="btn-primary min-h-touch w-full py-4 text-base"
               >
                 Otra captura
               </button>

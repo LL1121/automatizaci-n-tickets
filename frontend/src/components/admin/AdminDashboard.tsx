@@ -2,6 +2,7 @@
 
 import type { LitrosBarRow } from "@/components/admin/AdminLitrosChart";
 import { AdminTicketPanel } from "@/components/admin/AdminTicketPanel";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { AdminSortKey, AdminSortOrder, AdminTicketRow, AdminSummary, VehicleStat } from "@/lib/admin-api";
 import {
   exportMonthlyUrl,
@@ -41,7 +42,7 @@ const AdminLitrosChartLazy = dynamic(
   () => import("@/components/admin/AdminLitrosChart").then((m) => m.AdminLitrosChart),
   {
     ssr: false,
-    loading: () => <p className="text-sm text-zinc-500">Cargando gráfico…</p>,
+    loading: () => <p className="text-sm text-field-muted">Cargando gráfico…</p>,
   },
 );
 
@@ -86,7 +87,7 @@ function SortHead({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 font-medium hover:text-white ${active ? "text-cyan-400" : "text-zinc-400"}`}
+      className={`flex items-center gap-1 font-medium hover:text-field-accent ${active ? "text-field-accent" : "text-field-muted"}`}
     >
       {label}
       {active ? <span className="text-xs opacity-80">{order === "asc" ? "↑" : "↓"}</span> : null}
@@ -167,7 +168,7 @@ export function AdminDashboard() {
         id: "thumb",
         header: "",
         cell: ({ row }) => (
-          <div className="h-10 w-14 shrink-0 overflow-hidden rounded border border-zinc-700 bg-black">
+          <div className="h-10 w-14 shrink-0 overflow-hidden rounded border border-field-border bg-field-surface">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={ticketImageUrl(row.original.id)} alt="" className="h-full w-full object-cover" loading="lazy" />
           </div>
@@ -179,7 +180,7 @@ export function AdminDashboard() {
         header: () => (
           <SortHead label="Patente" active={sort.by === "patente"} order={sort.ord} onClick={() => toggleSort("patente")} />
         ),
-        cell: ({ getValue }) => <span className="font-mono text-sm text-zinc-200">{(getValue() as string) ?? "—"}</span>,
+        cell: ({ getValue }) => <span className="font-mono text-sm text-field-text">{(getValue() as string) ?? "—"}</span>,
       },
       {
         id: "fecha",
@@ -189,7 +190,7 @@ export function AdminDashboard() {
         cell: ({ row }) => {
           const r = row.original;
           const d = r.fecha ?? r.ingested_at;
-          return <span className="text-sm text-zinc-300">{d ? new Date(d).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—"}</span>;
+          return <span className="text-sm text-field-muted">{d ? new Date(d).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—"}</span>;
         },
       },
       {
@@ -201,7 +202,7 @@ export function AdminDashboard() {
         accessorKey: "kilometraje",
         header: "Km",
         cell: ({ getValue }) => (
-          <span className="text-sm tabular-nums text-zinc-300">
+          <span className="text-sm tabular-nums text-field-muted">
             {getValue() != null ? Number(getValue()).toLocaleString("es-AR") : "—"}
           </span>
         ),
@@ -209,7 +210,7 @@ export function AdminDashboard() {
       {
         accessorKey: "operador_nombre",
         header: "Operario",
-        cell: ({ getValue }) => <span className="text-sm text-zinc-300">{(getValue() as string) ?? "—"}</span>,
+        cell: ({ getValue }) => <span className="text-sm text-field-muted">{(getValue() as string) ?? "—"}</span>,
       },
       {
         accessorKey: "remito",
@@ -217,7 +218,7 @@ export function AdminDashboard() {
         cell: ({ getValue }) => {
           const v = getValue() as string | null;
           return (
-            <span className={`font-mono text-sm ${v ? "text-zinc-300" : "text-zinc-500"}`}>
+            <span className={`font-mono text-sm ${v ? "text-field-muted" : "text-gray-400"}`}>
               {v ?? "No encontrado"}
             </span>
           );
@@ -229,7 +230,7 @@ export function AdminDashboard() {
         cell: ({ getValue }) => {
           const v = getValue() as number | null;
           return (
-            <span className={`text-sm tabular-nums ${v != null && v < LOW_CONF ? "text-rose-400" : "text-zinc-400"}`}>
+            <span className={`text-sm tabular-nums ${v != null && v < LOW_CONF ? "text-field-danger" : "text-field-muted"}`}>
               {v != null ? `${(v * 100).toFixed(0)}%` : "—"}
             </span>
           );
@@ -239,11 +240,7 @@ export function AdminDashboard() {
         accessorKey: "is_verified",
         header: "Estado",
         cell: ({ getValue }) =>
-          getValue() ? (
-            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Verificado</span>
-          ) : (
-            <span className="rounded-full bg-zinc-700/50 px-2 py-0.5 text-xs text-zinc-500">Pendiente</span>
-          ),
+          getValue() ? <StatusBadge variant="verified">Verificado</StatusBadge> : <StatusBadge variant="pending">Pendiente</StatusBadge>,
       },
     ],
     [sort.by, sort.ord, toggleSort],
@@ -255,33 +252,39 @@ export function AdminDashboard() {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const rowTone = (r: AdminTicketRow) => {
-    if (r.is_verified) return "";
-    if (r.confidence_score != null && r.confidence_score < LOW_CONF) return "bg-rose-950/35 hover:bg-rose-950/45";
-    return "hover:bg-zinc-800/40";
+  const rowTone = (r: AdminTicketRow, index: number) => {
+    const alt = index % 2 === 1 ? "bg-field-surface" : "bg-white";
+    if (r.is_verified) return `${alt} hover:bg-brand-light/40`;
+    if (r.confidence_score != null && r.confidence_score < LOW_CONF) return "bg-red-50 hover:bg-red-100/80";
+    return `${alt} hover:bg-brand-light/50`;
   };
 
   return (
     <div className="space-y-8">
+      <header>
+        <h1 className="text-2xl font-bold text-brand">Gestión de combustible</h1>
+        <p className="mt-1 text-sm text-field-muted">Auditoría de tickets YPF En Ruta y métricas mensuales.</p>
+      </header>
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={prev}
             disabled={!ready}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            className="btn-secondary !min-h-0 px-3 py-2 disabled:opacity-40"
             aria-label="Mes anterior"
           >
             ←
           </button>
-          <h1 className="text-xl font-semibold text-white">
+          <h2 className="text-xl font-semibold text-field-text">
             {ready && year != null && month != null ? `${MONTH_NAMES_ES[month - 1]} ${year}` : "…"}
-          </h1>
+          </h2>
           <button
             type="button"
             onClick={next}
             disabled={!ready}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+            className="btn-secondary !min-h-0 px-3 py-2 disabled:opacity-40"
             aria-label="Mes siguiente"
           >
             →
@@ -291,59 +294,63 @@ export function AdminDashboard() {
           <a
             href={exportMonthlyUrl(year, month)}
             download
-            className="inline-flex min-h-12 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-900 hover:bg-white"
+            className="btn-primary min-h-12"
           >
             Exportar Excel (.xlsx)
           </a>
         ) : (
-          <span className="inline-flex min-h-12 cursor-not-allowed items-center justify-center rounded-xl bg-zinc-800 px-5 text-sm font-semibold text-zinc-500">
+          <span className="inline-flex min-h-12 cursor-not-allowed items-center justify-center rounded-lg bg-field-surface px-5 text-sm font-semibold text-gray-400">
             Exportar Excel (.xlsx)
           </span>
         )}
       </div>
 
       {err ? (
-        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">{err}</div>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>
       ) : null}
 
       {loading && !summary ? (
-        <p className="text-sm text-zinc-500">Cargando métricas…</p>
+        <p className="text-sm text-field-muted">Cargando métricas…</p>
       ) : summary ? (
         <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total litros (mes)</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-white">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Total litros (mes)</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-field-text">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Km registrados (mes)</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-cyan-400">
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Km registrados (mes)</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-brand">
               {summary.total_kilometraje.toLocaleString("es-AR")} km
             </p>
           </div>
-          <div className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Cantidad de cargas</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-white">{summary.cantidad_cargas}</p>
+          <div className="card p-5">
+            <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Cantidad de cargas</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-field-text">{summary.cantidad_cargas}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-zinc-800 bg-[#0c0e12] p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-400">Litros por patente (mes)</h2>
+      <section className="card p-5">
+        <h2 className="mb-1 text-lg font-semibold text-brand">Litros por patente</h2>
+        <p className="mb-4 text-sm text-field-muted">Consumo del mes seleccionado</p>
         <div className="h-72 w-full">
           {!ready ? (
-            <p className="text-sm text-zinc-500">Preparando período…</p>
+            <p className="text-sm text-field-muted">Preparando período…</p>
           ) : chartData.length === 0 ? (
-            <p className="text-sm text-zinc-500">Sin datos en este período.</p>
+            <p className="text-sm text-field-muted">Sin datos en este período.</p>
           ) : (
             <AdminLitrosChartLazy data={chartData} />
           )}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-zinc-800 bg-[#0c0e12]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-5 py-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Auditoría de tickets</h2>
-          <span className="text-xs text-zinc-500">
+      <section className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-field-border bg-field-surface px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-brand">Auditoría de tickets</h2>
+            <p className="text-sm text-field-muted">Revisión y verificación de comprobantes</p>
+          </div>
+          <span className="text-xs text-field-muted">
             Mostrando {tickets.length} de {totalTickets} · Confianza baja (&lt; {(LOW_CONF * 100).toFixed(0)}%) resaltada
           </span>
         </div>
@@ -351,7 +358,7 @@ export function AdminDashboard() {
           <table className="w-full min-w-[800px] border-collapse text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-zinc-800 text-xs uppercase text-zinc-500">
+                <tr key={hg.id} className="border-b border-field-border bg-field-surface text-xs uppercase text-field-muted">
                   {hg.headers.map((h) => (
                     <th key={h.id} className="px-4 py-3 font-medium">
                       {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
@@ -361,10 +368,10 @@ export function AdminDashboard() {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => (
+              {table.getRowModel().rows.map((row, index) => (
                 <tr
                   key={row.id}
-                  className={`cursor-pointer border-b border-zinc-800/80 ${rowTone(row.original)}`}
+                  className={`cursor-pointer border-b border-field-border ${rowTone(row.original, index)}`}
                   onClick={() => setSelected(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

@@ -3,14 +3,14 @@ import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Fuel-Ops · Campo",
+  title: "Fuel-Ops · Irrigación",
   description: "Captura y sincronización de tickets de combustible",
   icons: {
     icon: "/favicon.svg",
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Fuel-Ops",
   },
   formatDetection: {
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0b",
+  themeColor: "#0066CC",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es">
       <body className="safe-pt safe-pb">
         <ServiceWorkerRegister />
         {children}

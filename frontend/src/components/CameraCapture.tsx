@@ -243,12 +243,12 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           }}
         >
           <div className="relative h-full w-full">
-            <motion.div className="absolute inset-0 rounded-xl border-2 border-white/40 shadow-[0_0_0_9999px_rgba(0,0,0,0.42)]" />
+            <div className="absolute inset-0 rounded-xl border-2 border-white/50 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
             <div ref={scanHostRef} className="absolute inset-[8%] overflow-hidden rounded-lg">
               {!isFrozen ? (
                 <div
                   ref={scanLineRef}
-                  className="absolute left-0 right-0 top-0 h-[3px] rounded-full bg-field-accent shadow-[0_0_16px_#22d3ee,0_0_32px_rgba(34,211,238,0.35)]"
+                  className="absolute left-0 right-0 top-0 h-[3px] rounded-full bg-brand shadow-[0_0_16px_#0066CC,0_0_32px_rgba(0,102,204,0.35)]"
                 />
               ) : null}
             </div>
@@ -257,7 +257,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
 
         {isFrozen && busy ? (
           <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/75 to-transparent px-4 pb-6 pt-4">
-            <p className="text-center text-sm font-medium text-field-accent">Procesando captura…</p>
+            <p className="text-center text-sm font-medium text-brand-light">Procesando captura…</p>
           </div>
         ) : null}
 
@@ -275,10 +275,10 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           disabled={busy || Boolean(error)}
           onClick={() => void shutter()}
           aria-label={busy ? "Procesando captura" : "Capturar ticket"}
-          className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-field-accent text-field-bg shadow-[0_4px_24px_rgba(34,211,238,0.45)] ring-4 ring-black/30 disabled:opacity-50"
+          className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-brand text-white shadow-[0_4px_24px_rgba(0,102,204,0.45)] ring-4 ring-black/30 disabled:opacity-50"
         >
           {busy ? (
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-field-bg/30 border-t-field-bg" />
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
           ) : (
             <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
               <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />

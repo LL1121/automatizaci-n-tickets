@@ -32,13 +32,13 @@ function statusLabel(row: PendingTicketRecord): string {
 function statusClass(row: PendingTicketRecord): string {
   switch (row.status) {
     case "quota_blocked":
-      return "text-rose-400 bg-rose-500/15";
+      return "bg-red-100 text-red-800";
     case "failed":
-      return "text-amber-300 bg-amber-500/15";
+      return "bg-status-pendingBg text-status-pendingText";
     case "uploading":
-      return "text-cyan-300 bg-cyan-500/15";
+      return "bg-brand-light text-brand";
     default:
-      return "text-zinc-400 bg-zinc-700/40";
+      return "bg-field-surface text-field-muted";
   }
 }
 
@@ -128,7 +128,7 @@ export function PendingInbox({ onBack, onChanged }: Props) {
   };
 
   return (
-    <motion.div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-4">
       <div>
         <button
           type="button"
@@ -137,23 +137,23 @@ export function PendingInbox({ onBack, onChanged }: Props) {
         >
           ← Volver
         </button>
-        <h2 className="text-2xl font-semibold text-white">Pendientes</h2>
-        <p className="mt-2 text-sm text-zinc-400">
-          Las fotos se suben <strong className="font-medium text-zinc-300">solo cuando tocás Subir</strong> (una por
+        <h2 className="text-2xl font-semibold text-brand">Pendientes</h2>
+        <p className="mt-2 text-sm text-field-muted">
+          Las fotos se suben <strong className="font-medium text-field-text">solo cuando tocás Subir</strong> (una por
           vez, para no gastar cuota de IA).
         </p>
       </div>
 
       {msg ? (
-        <motion.div className="rounded-xl border border-field-border bg-field-surface px-4 py-3 text-sm text-field-accent">
+        <div className="rounded-xl border border-brand/20 bg-brand-light px-4 py-3 text-sm text-brand">
           {msg}
-        </motion.div>
+        </div>
       ) : null}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <p className="text-sm text-field-muted">Cargando…</p>
       ) : rows.length === 0 ? (
-        <p className="rounded-xl border border-field-border bg-field-surface p-6 text-center text-sm text-zinc-500">
+        <p className="card p-6 text-center text-sm text-field-muted">
           No hay tickets pendientes en este dispositivo.
         </p>
       ) : (
@@ -169,9 +169,9 @@ export function PendingInbox({ onBack, onChanged }: Props) {
             return (
               <li
                 key={row.id}
-                className="rounded-2xl border border-field-border bg-field-surface p-4"
+                className="card p-4"
               >
-                <motion.div className="flex gap-4">
+                <div className="flex gap-4">
                   <button
                     type="button"
                     onClick={() => openPreview(row)}
@@ -184,29 +184,29 @@ export function PendingInbox({ onBack, onChanged }: Props) {
                   </button>
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-white">{row.patente || "—"}</span>
+                      <span className="font-mono text-field-text">{row.patente || "—"}</span>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(row)}`}
                       >
                         {statusLabel(row)}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-field-muted">
                       {new Date(row.createdAt).toLocaleString("es-AR", {
                         dateStyle: "short",
                         timeStyle: "short",
                       })}
                     </p>
                     {row.lastError ? (
-                      <p className="line-clamp-2 text-xs text-zinc-400">{row.lastError}</p>
+                      <p className="line-clamp-2 text-xs text-field-muted">{row.lastError}</p>
                     ) : null}
-                    <motion.div className="mt-1 flex flex-wrap gap-2">
+                    <div className="mt-1 flex flex-wrap gap-2">
                       {canUpload ? (
                         <button
                           type="button"
                           disabled={busy || busyId != null}
                           onClick={() => void uploadOne(row.id)}
-                          className="min-h-touch flex-1 rounded-xl bg-field-accent px-3 py-2 text-sm font-semibold text-field-bg disabled:opacity-50"
+                          className="btn-primary min-h-touch flex-1 !py-2 text-sm disabled:opacity-50"
                         >
                           {busy ? "Subiendo…" : "Subir (1 token)"}
                         </button>
@@ -215,13 +215,13 @@ export function PendingInbox({ onBack, onChanged }: Props) {
                         type="button"
                         disabled={busy}
                         onClick={() => void removeOne(row.id)}
-                        className="min-h-touch rounded-xl border border-field-border px-3 py-2 text-sm text-zinc-400"
+                        className="btn-secondary min-h-touch !py-2 text-sm"
                       >
                         Eliminar
                       </button>
-                    </motion.div>
+                    </div>
                   </div>
-                </motion.div>
+                </div>
               </li>
             );
           })}
@@ -250,6 +250,6 @@ export function PendingInbox({ onBack, onChanged }: Props) {
           <p className="mt-4 text-center font-mono text-sm text-zinc-300">{preview.patente}</p>
         </motion.div>
       ) : null}
-    </motion.div>
+    </div>
   );
 }

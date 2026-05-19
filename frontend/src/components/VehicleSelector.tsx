@@ -49,25 +49,25 @@ export function VehicleSelector({ onSelected }: Props) {
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div>
-        <h2 className="text-2xl font-semibold text-white">Elegí el vehículo</h2>
-        <p className="mt-2 text-sm text-zinc-400">Patente y tanque según base Fuel-Ops.</p>
+        <h2 className="text-2xl font-semibold text-brand">Elegí el vehículo</h2>
+        <p className="mt-2 text-sm text-field-muted">Patente y tanque según base Fuel-Ops.</p>
       </div>
 
       {loading ? (
-        <p className="text-sm text-zinc-500">Cargando…</p>
+        <p className="text-sm text-field-muted">Cargando…</p>
       ) : err ? (
-        <div className="rounded-xl border border-field-border bg-field-surface p-4 text-sm text-rose-300">
+        <div className="card p-4 text-sm text-field-danger">
           {err}
           <button
             type="button"
             onClick={() => void load()}
-            className="mt-4 min-h-touch w-full rounded-xl border border-field-border py-3 text-field-accent"
+            className="btn-secondary mt-4 w-full"
           >
             Reintentar
           </button>
         </div>
       ) : items.length === 0 ? (
-        <p className="text-sm text-zinc-500">No hay vehículos cargados en el servidor.</p>
+        <p className="text-sm text-field-muted">No hay vehículos cargados en el servidor.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {items.map((v) => (
@@ -76,13 +76,13 @@ export function VehicleSelector({ onSelected }: Props) {
                 type="button"
                 whileTap={{ scale: 0.98 }}
                 onClick={() => pick(v)}
-                className="flex min-h-touch w-full items-center justify-between rounded-2xl border border-field-border bg-field-surface px-5 py-4 text-left ring-field-accent/0 transition hover:border-field-accent/50 hover:ring-2"
+                className="card flex min-h-touch w-full items-center justify-between px-5 py-4 text-left transition hover:border-brand/40 hover:shadow-md"
               >
-                <span className="font-mono text-lg text-white">{v.patente}</span>
+                <span className="font-mono text-lg text-field-text">{v.patente}</span>
                 {v.capacidad_tanque != null ? (
-                  <span className="text-sm text-zinc-500">{v.capacidad_tanque} L</span>
+                  <span className="text-sm text-field-muted">{v.capacidad_tanque} L</span>
                 ) : (
-                  <span className="text-sm text-zinc-600">—</span>
+                  <span className="text-sm text-gray-400">—</span>
                 )}
               </motion.button>
             </li>
