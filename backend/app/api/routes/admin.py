@@ -12,11 +12,13 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import AdminPrincipal
 from app.core.config import get_settings
+from app.core.security import create_admin_token, verify_admin_credentials
 from app.db.session import get_db
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
@@ -33,6 +35,36 @@ from app.services.admin_stats import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+auth_router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
+
+
+class LoginBody(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class LoginResponse(BaseModel):
+    token: str
+    expires_at: str
+    username: str
+
+
+@auth_router.post("/login", response_model=LoginResponse)
+def admin_login(body: LoginBody) -> LoginResponse:
+    if not verify_admin_credentials(body.username, body.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña inválidos.",
+        )
+    settings = get_settings()
+    token, exp = create_admin_token(subject=settings.admin_username)
+    return LoginResponse(token=token, expires_at=exp.isoformat(), username=settings.admin_username)
+
+
+@auth_router.get("/me")
+def admin_me(principal: AdminPrincipal) -> dict[str, Any]:
+    return {"username": principal.get("sub"), "role": principal.get("role")}
 
 SORT_COLUMNS = Literal["fecha", "patente", "confidence_score", "ingested_at", "id"]
 SORT_ORDER = Literal["asc", "desc"]
@@ -93,6 +125,7 @@ def _safe_image_path(settings: Any, stored_path: str) -> Path:
 
 @router.get("/stats/summary")
 def admin_stats_summary(
+    _: AdminPrincipal,
     year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     db: Session = Depends(get_db),
@@ -103,6 +136,7 @@ def admin_stats_summary(
 
 @router.get("/stats/vehicles")
 def admin_stats_vehicles(
+    _: AdminPrincipal,
     year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     db: Session = Depends(get_db),
@@ -117,6 +151,7 @@ def admin_stats_vehicles(
 
 @router.get("/tickets")
 def admin_list_tickets(
+    _: AdminPrincipal,
     db: Session = Depends(get_db),
     from_date: Annotated[str | None, Query(description="ISO8601 inicio (filtro por fecha ticket o ingesta)")] = None,
     to_date: Annotated[str | None, Query(description="ISO8601 fin")] = None,
@@ -172,7 +207,11 @@ def admin_list_tickets(
 
 
 @router.get("/tickets/{ticket_id}")
-def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
+def admin_get_ticket(
+    ticket_id: int,
+    _: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     row = db.execute(
         select(
             Ticket.id,
@@ -204,6 +243,7 @@ def admin_get_ticket(ticket_id: int, db: Session = Depends(get_db)) -> dict[str,
 @router.get("/tickets/{ticket_id}/image")
 def admin_ticket_image(
     ticket_id: int,
+    _: AdminPrincipal,
     db: Session = Depends(get_db),
 ) -> FileResponse:
     settings = get_settings()
@@ -219,6 +259,7 @@ def admin_ticket_image(
 def admin_patch_ticket(
     ticket_id: int,
     body: TicketUpdateBody,
+    principal: AdminPrincipal,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     t = db.get(Ticket, ticket_id)
@@ -259,11 +300,12 @@ def admin_patch_ticket(
         ) from None
 
     db.refresh(t)
-    return admin_get_ticket(ticket_id, db)
+    return admin_get_ticket(ticket_id, principal, db)
 
 
 @router.get("/export/monthly.xlsx")
 def admin_export_monthly(
+    _: AdminPrincipal,
     year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     db: Session = Depends(get_db),

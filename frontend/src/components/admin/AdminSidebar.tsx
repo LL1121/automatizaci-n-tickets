@@ -1,8 +1,9 @@
 "use client";
 
+import { useAdminAuth } from "@/store/useAdminAuth";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
   {
@@ -18,6 +19,15 @@ const NAV = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const username = useAdminAuth((s) => s.username);
+  const clear = useAdminAuth((s) => s.clear);
+  const initial = (username ?? "A").trim().charAt(0).toUpperCase() || "A";
+
+  const logout = () => {
+    clear();
+    router.replace("/admin/login");
+  };
 
   return (
     <aside className="flex w-64 shrink-0 flex-col bg-brand text-white">
@@ -58,19 +68,17 @@ export function AdminSidebar() {
       <div className="border-t border-white/10 px-4 py-4">
         <div className="flex items-center gap-3 rounded-lg bg-white/10 px-3 py-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-semibold">
-            A
+            {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Administrador</p>
-            <p className="truncate text-xs text-white/70">admin@irrigacion.local</p>
+            <p className="truncate text-sm font-medium">{username ?? "Administrador"}</p>
+            <p className="truncate text-xs text-white/70">Sesión activa</p>
           </div>
         </div>
         <button
           type="button"
           className="mt-3 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10"
-          onClick={() => {
-            window.location.href = "/";
-          }}
+          onClick={logout}
         >
           Cerrar sesión
         </button>

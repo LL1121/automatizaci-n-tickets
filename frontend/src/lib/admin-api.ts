@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/api";
+import { clearAdminSession, getAdminToken } from "@/store/useAdminAuth";
 
 export type AdminSortKey = "fecha" | "patente" | "confidence_score" | "ingested_at" | "id";
 export type AdminSortOrder = "asc" | "desc";
@@ -37,22 +38,74 @@ export type VehicleStat = {
   cantidad_cargas: number;
 };
 
+export class AdminUnauthorizedError extends Error {
+  constructor(message = "Sesión expirada") {
+    super(message);
+    this.name = "AdminUnauthorizedError";
+  }
+}
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getAdminToken();
+  const base: Record<string, string> = {};
+  if (token) base["Authorization"] = `Bearer ${token}`;
+  if (extra) Object.assign(base, extra as Record<string, string>);
+  return base;
+}
+
+async function adminFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, {
+    ...init,
+    headers: authHeaders(init.headers),
+    cache: "no-store",
+  });
+  if (res.status === 401) {
+    clearAdminSession();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/admin/login")) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.replace(`/admin/login?next=${next}`);
+    }
+    throw new AdminUnauthorizedError();
+  }
+  return res;
+}
+
 export function monthUtcIsoRange(year: number, month: number): { from: string; to: string } {
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
   return { from: start.toISOString(), to: end.toISOString() };
 }
 
+export async function adminLogin(
+  username: string,
+  password: string,
+): Promise<{ token: string; username: string; expires_at: string }> {
+  const res = await fetch(`${getApiBase()}/admin/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (res.status === 401) throw new Error("Usuario o contraseña inválidos.");
+  if (!res.ok) throw new Error(`Error ${res.status} al iniciar sesión`);
+  return res.json();
+}
+
+export async function adminMe(): Promise<{ username: string; role: string }> {
+  const res = await adminFetch(`${getApiBase()}/admin/auth/me`);
+  if (!res.ok) throw new Error(`me ${res.status}`);
+  return res.json();
+}
+
 export async function fetchAdminSummary(year: number, month: number): Promise<AdminSummary> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
-  const res = await fetch(`${getApiBase()}/admin/stats/summary?${q}`, { cache: "no-store" });
+  const res = await adminFetch(`${getApiBase()}/admin/stats/summary?${q}`);
   if (!res.ok) throw new Error(`summary ${res.status}`);
   return res.json() as Promise<AdminSummary>;
 }
 
 export async function fetchAdminVehicleStats(year: number, month: number): Promise<{ vehicles: VehicleStat[] }> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
-  const res = await fetch(`${getApiBase()}/admin/stats/vehicles?${q}`, { cache: "no-store" });
+  const res = await adminFetch(`${getApiBase()}/admin/stats/vehicles?${q}`);
   if (!res.ok) throw new Error(`vehicles ${res.status}`);
   return res.json() as Promise<{ vehicles: VehicleStat[] }>;
 }
@@ -73,7 +126,7 @@ export async function fetchAdminTickets(params: {
     limit: String(params.limit ?? 100),
     offset: String(params.offset ?? 0),
   });
-  const res = await fetch(`${getApiBase()}/admin/tickets?${q}`, { cache: "no-store" });
+  const res = await adminFetch(`${getApiBase()}/admin/tickets?${q}`);
   if (!res.ok) throw new Error(`tickets ${res.status}`);
   return res.json() as Promise<{ total: number; items: AdminTicketRow[] }>;
 }
@@ -88,7 +141,7 @@ export async function patchAdminTicket(
     is_verified: boolean;
   }>,
 ): Promise<AdminTicketRow> {
-  const res = await fetch(`${getApiBase()}/admin/tickets/${id}`, {
+  const res = await adminFetch(`${getApiBase()}/admin/tickets/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -100,11 +153,23 @@ export async function patchAdminTicket(
   return res.json() as Promise<AdminTicketRow>;
 }
 
-export function ticketImageUrl(id: number): string {
-  return `${getApiBase()}/admin/tickets/${id}/image`;
+/**
+ * URL de imagen del ticket. Como `<img>` no permite headers,
+ * adjuntamos el JWT como query param y el backend lo valida igual.
+ */
+export function ticketImageUrl(id: number, token?: string | null): string {
+  const t = token ?? getAdminToken();
+  const base = `${getApiBase()}/admin/tickets/${id}/image`;
+  return t ? `${base}?token=${encodeURIComponent(t)}` : base;
 }
 
-export function exportMonthlyUrl(year: number, month: number): string {
+/**
+ * URL del Excel mensual. Igual que la imagen, va por query param para
+ * que un `<a download>` no necesite cabeceras.
+ */
+export function exportMonthlyUrl(year: number, month: number, token?: string | null): string {
+  const t = token ?? getAdminToken();
   const q = new URLSearchParams({ year: String(year), month: String(month) });
+  if (t) q.set("token", t);
   return `${getApiBase()}/admin/export/monthly.xlsx?${q}`;
 }

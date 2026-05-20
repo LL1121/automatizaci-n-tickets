@@ -42,6 +42,27 @@ class Settings(BaseSettings):
         description="Orígenes permitidos separados por coma. Vacío = cualquier origen (sin credenciales CORS).",
     )
 
+    admin_username: str = Field(
+        default="admin",
+        alias="ADMIN_USERNAME",
+        description="Usuario único del panel admin.",
+    )
+    admin_password: str = Field(
+        default="",
+        alias="ADMIN_PASSWORD",
+        description="Contraseña del panel admin. Si está vacía, el login queda deshabilitado.",
+    )
+    jwt_secret: str = Field(
+        default="",
+        alias="JWT_SECRET",
+        description="Secret para firmar JWT del admin. Debe definirse en producción.",
+    )
+    jwt_expires_minutes: int = Field(
+        default=12 * 60,
+        alias="JWT_EXPIRES_MINUTES",
+        description="Minutos de vigencia del token admin (default 12 h).",
+    )
+
     @field_validator("upload_dir", mode="before")
     @classmethod
     def coerce_upload_dir(cls, v: str | Path) -> Path:
