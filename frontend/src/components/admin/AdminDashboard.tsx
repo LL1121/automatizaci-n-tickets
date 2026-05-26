@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminBatchUpload } from "@/components/admin/AdminBatchUpload";
 import type { LitrosBarRow } from "@/components/admin/AdminLitrosChart";
 import { AdminTicketPanel } from "@/components/admin/AdminTicketPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -314,6 +315,8 @@ export function AdminDashboard() {
           </div>
         </section>
       ) : null}
+
+      <AdminBatchUpload onUploaded={() => void load()} />
 
       <section className="card p-5">
         <h2 className="mb-1 text-lg font-semibold text-brand">Litros por patente</h2>

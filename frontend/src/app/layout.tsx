@@ -3,15 +3,19 @@ import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 
 export const metadata: Metadata = {
-  title: "Fuel-Ops · Irrigación",
+  title: "Gestión de combustible · Irrigación Malargüe",
   description: "Captura y sincronización de tickets de combustible",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/icon-irrigacion.png", type: "image/png" },
+    ],
+    shortcut: "/icon-irrigacion.png",
+    apple: "/icon-irrigacion.png",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Fuel-Ops",
+    title: "Combustible",
   },
   formatDetection: {
     telephone: false,

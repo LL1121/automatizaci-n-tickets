@@ -96,6 +96,42 @@ export async function adminMe(): Promise<{ username: string; role: string }> {
   return res.json();
 }
 
+export type BatchFileResult = {
+  filename: string;
+  status: "ok" | "partial" | "duplicate" | "error";
+  tickets: AdminTicketRow[];
+  duplicates: number;
+  errors: string[];
+};
+
+export type BatchUploadResponse = {
+  summary: {
+    files: number;
+    tickets_created: number;
+    duplicates: number;
+    errors: number;
+  };
+  results: BatchFileResult[];
+};
+
+/** Sube uno o más archivos al endpoint /admin/upload-batch. */
+export async function adminUploadBatch(files: File[]): Promise<BatchUploadResponse> {
+  if (files.length === 0) {
+    return { summary: { files: 0, tickets_created: 0, duplicates: 0, errors: 0 }, results: [] };
+  }
+  const form = new FormData();
+  for (const f of files) form.append("files", f, f.name);
+  const res = await adminFetch(`${getApiBase()}/admin/upload-batch`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(detail || `upload-batch ${res.status}`);
+  }
+  return (await res.json()) as BatchUploadResponse;
+}
+
 export async function fetchAdminSummary(year: number, month: number): Promise<AdminSummary> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
   const res = await adminFetch(`${getApiBase()}/admin/stats/summary?${q}`);

@@ -50,7 +50,7 @@ export function VehicleSelector({ onSelected }: Props) {
     <div className="flex flex-1 flex-col gap-4">
       <div>
         <h2 className="text-2xl font-semibold text-brand">Elegí el vehículo</h2>
-        <p className="mt-2 text-sm text-field-muted">Patente y tanque según base Fuel-Ops.</p>
+        <p className="mt-2 text-sm text-field-muted">Patente y tanque según base de Irrigación.</p>
       </div>
 
       {loading ? (

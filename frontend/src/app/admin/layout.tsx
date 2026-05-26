@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export const metadata: Metadata = {
-  title: "Fuel-Ops · Admin · Irrigación",
+  title: "Gestión de combustible · Admin",
   description: "Auditoría y analítica de combustible",
 };
 

@@ -270,29 +270,33 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
           Reiniciar
         </button>
 
-        <button
-          type="button"
-          disabled={busy || Boolean(error)}
-          onClick={() => void shutter()}
-          aria-label={busy ? "Procesando captura" : "Capturar ticket"}
-          className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-brand text-white shadow-[0_4px_24px_rgba(0,102,204,0.45)] ring-4 ring-black/30 disabled:opacity-50"
-        >
-          {busy ? (
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          ) : (
-            <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
-              <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-              <circle cx="12" cy="12" r="4" />
-            </svg>
-          )}
-        </button>
-      </div>
+        {!error ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void shutter()}
+            aria-label={busy ? "Procesando captura" : "Capturar ticket"}
+            className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-brand text-white shadow-[0_4px_24px_rgba(0,102,204,0.45)] ring-4 ring-black/30 disabled:opacity-50"
+          >
+            {busy ? (
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            )}
+          </button>
+        ) : null}
 
-      {error ? (
-        <p className="absolute bottom-2 left-2 right-[5.5rem] z-20 rounded-lg bg-black/70 px-3 py-2 text-center text-xs text-field-danger backdrop-blur-sm">
-          {error}
-        </p>
-      ) : null}
+        {error ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
+            <p className="max-w-sm rounded-lg bg-black/75 px-4 py-2 text-center text-xs font-medium text-field-danger shadow-lg backdrop-blur-sm">
+              {error}
+            </p>
+          </div>
+        ) : null}
+      </div>
     </motion.div>
   );
 }

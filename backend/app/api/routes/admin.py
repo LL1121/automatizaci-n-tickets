@@ -1,7 +1,8 @@
-"""Panel de administración: estadísticas, auditoría de tickets y exportación."""
+"""Panel de administración: estadísticas, auditoría de tickets, exportación y carga masiva."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -9,7 +10,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
 from pydantic import BaseModel, Field
@@ -31,6 +32,13 @@ from app.services.admin_stats import (
     tickets_for_export,
     tickets_query_filtered,
 )
+from app.services.image_segmentation import (
+    decode_image_bytes,
+    encode_image_jpeg,
+    segment_tickets,
+)
+from app.services.pdf_render import PdfRenderError, render_pdf_to_bgr
+from app.services.ticket_ingest import IngestOutcome, ingest_ticket_image
 
 logger = logging.getLogger(__name__)
 
@@ -354,9 +362,207 @@ def admin_export_monthly(
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
-    filename = f"fuelops_{period.year}_{period.month:02d}.xlsx"
+    filename = f"combustible_{period.year}_{period.month:02d}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Carga masiva administrativa (Drop Zone)
+# ---------------------------------------------------------------------------
+
+_BATCH_ALLOWED_IMAGE_TYPES: frozenset[str] = frozenset(
+    {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"},
+)
+_BATCH_MAX_FILES: int = 25
+_BATCH_MAX_SEGMENTS_PER_FILE: int = 30
+
+
+def _is_pdf(filename: str | None, content_type: str | None) -> bool:
+    fname = (filename or "").lower()
+    ctype = (content_type or "").lower()
+    return ctype == "application/pdf" or fname.endswith(".pdf")
+
+
+def _decompose_file_to_segments(
+    raw: bytes,
+    filename: str | None,
+    content_type: str | None,
+) -> tuple[list[bytes], list[str]]:
+    """Devuelve (lista_segmentos_jpeg, errores_de_decodificación)."""
+    errors: list[str] = []
+    if not raw:
+        errors.append("Archivo vacío.")
+        return [], errors
+
+    pages = []
+    if _is_pdf(filename, content_type):
+        try:
+            pages = render_pdf_to_bgr(raw)
+        except PdfRenderError as exc:
+            errors.append(str(exc))
+            return [], errors
+    else:
+        decoded = decode_image_bytes(raw)
+        if decoded is None:
+            errors.append("Formato de imagen no soportado o archivo corrupto.")
+            return [], errors
+        pages = [decoded]
+
+    segments: list[bytes] = []
+    for page in pages:
+        for crop in segment_tickets(page):
+            if len(segments) >= _BATCH_MAX_SEGMENTS_PER_FILE:
+                errors.append(
+                    f"Se truncaron los recortes en {_BATCH_MAX_SEGMENTS_PER_FILE} por seguridad.",
+                )
+                return segments, errors
+            try:
+                segments.append(encode_image_jpeg(crop, quality=88))
+            except RuntimeError as exc:
+                errors.append(f"No se pudo codificar un recorte: {exc}")
+    return segments, errors
+
+
+class BatchTicketResult(BaseModel):
+    filename: str
+    status: Literal["ok", "partial", "duplicate", "error"]
+    tickets: list[dict[str, Any]] = Field(default_factory=list)
+    duplicates: int = 0
+    errors: list[str] = Field(default_factory=list)
+
+
+class BatchSummary(BaseModel):
+    files: int
+    tickets_created: int
+    duplicates: int
+    errors: int
+
+
+class BatchUploadResponse(BaseModel):
+    summary: BatchSummary
+    results: list[BatchTicketResult]
+
+
+def _process_file_sync(
+    raw: bytes,
+    filename: str,
+    content_type: str | None,
+    *,
+    db: Session,
+    operator_name: str,
+) -> BatchTicketResult:
+    """Bloqueante: hace todo el pipeline (segmentación + Gemini + persistencia)."""
+    result = BatchTicketResult(filename=filename, status="error")
+    segments, decode_errors = _decompose_file_to_segments(raw, filename, content_type)
+    result.errors.extend(decode_errors)
+
+    if not segments:
+        result.status = "error"
+        if not result.errors:
+            result.errors.append("No se encontraron tickets legibles en el archivo.")
+        return result
+
+    for segment_bytes in segments:
+        outcome: IngestOutcome = ingest_ticket_image(
+            segment_bytes,
+            db=db,
+            operator_name=operator_name,
+            field_device_id=None,
+            expected_patente=None,
+            enforce_patente_match=False,
+            auto_assign_vehicle=True,
+        )
+        if outcome.status == "created" and outcome.ticket_dict:
+            result.tickets.append(outcome.ticket_dict)
+        elif outcome.status == "duplicate":
+            result.duplicates += 1
+            if outcome.message:
+                result.errors.append(outcome.message)
+        else:
+            result.errors.append(outcome.message or f"Fallo: {outcome.status}")
+
+    if result.tickets and not result.errors and result.duplicates == 0:
+        result.status = "ok"
+    elif result.tickets:
+        result.status = "partial"
+    elif result.duplicates and not result.tickets:
+        result.status = "duplicate"
+    else:
+        result.status = "error"
+    return result
+
+
+@router.post("/upload-batch", response_model=BatchUploadResponse)
+async def admin_upload_batch(
+    principal: AdminPrincipal,
+    files: list[UploadFile] = File(..., description="Imágenes (JPEG/PNG/WebP) o PDFs con tickets."),
+    db: Session = Depends(get_db),
+) -> BatchUploadResponse:
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Subí al menos un archivo.",
+        )
+    if len(files) > _BATCH_MAX_FILES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Demasiados archivos en un solo lote (máximo {_BATCH_MAX_FILES}). Subilos en tandas.",
+        )
+
+    operator_name = f"Carga admin · {principal.get('sub') or 'admin'}"
+    results: list[BatchTicketResult] = []
+
+    for f in files:
+        filename = f.filename or "archivo"
+        ctype = (f.content_type or "").lower()
+        if not _is_pdf(filename, ctype) and ctype and ctype not in _BATCH_ALLOWED_IMAGE_TYPES:
+            results.append(
+                BatchTicketResult(
+                    filename=filename,
+                    status="error",
+                    errors=[f"Tipo de archivo no soportado: {ctype or 'desconocido'}."],
+                ),
+            )
+            continue
+
+        try:
+            raw = await f.read()
+        except Exception as exc:  # noqa: BLE001
+            results.append(
+                BatchTicketResult(
+                    filename=filename,
+                    status="error",
+                    errors=[f"No se pudo leer el archivo: {exc}"],
+                ),
+            )
+            continue
+
+        try:
+            r = await asyncio.to_thread(
+                _process_file_sync,
+                raw,
+                filename,
+                ctype,
+                db=db,
+                operator_name=operator_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Fallo en carga masiva del archivo %s", filename)
+            r = BatchTicketResult(
+                filename=filename,
+                status="error",
+                errors=[f"Error interno procesando el archivo: {exc}"],
+            )
+        results.append(r)
+
+    summary = BatchSummary(
+        files=len(results),
+        tickets_created=sum(len(r.tickets) for r in results),
+        duplicates=sum(r.duplicates for r in results),
+        errors=sum(1 for r in results if r.status == "error"),
+    )
+    return BatchUploadResponse(summary=summary, results=results)

@@ -137,10 +137,20 @@ export function FieldApp() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-8 pt-4">
       <header className="mb-6 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-brand">Irrigación · Fuel-Ops</p>
-          <h1 className="text-lg font-semibold text-field-text">Modo campo</h1>
-          {operatorName ? <p className="text-xs text-field-muted">Operario: {operatorName}</p> : null}
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/irrigacion-malargue.png"
+            alt="Irrigación Malargüe"
+            className="h-12 w-12 shrink-0 object-contain"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold text-field-text">Fotografía</h1>
+            {operatorName ? <p className="text-xs text-field-muted">Operario: {operatorName}</p> : null}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-1 text-right text-xs text-field-muted">
           <span
