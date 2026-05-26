@@ -15,8 +15,9 @@ from app.api.routes.upload import router as upload_router
 from app.api.routes.vehicles import router as vehicles_router
 from app.db.schema_migrations import apply_schema_migrations
 from app.db.session import get_engine, get_session_factory, verify_database_connection
-from app.models import Base, FieldDevice, Ticket, Vehicle  # noqa: F401 - registro de metadatos SQLAlchemy
+from app.models import AdminUser, Base, FieldDevice, Ticket, Vehicle  # noqa: F401 - registro de metadatos SQLAlchemy
 from app.api.routes.operators import router as operators_router
+from app.services.admin_users import bootstrap_admin_from_env
 from app.services.seed_vehicles import seed_demo_vehicles_if_configured
 
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
     apply_schema_migrations(engine)
     with get_session_factory()() as db:
         seed_demo_vehicles_if_configured(db)
+        bootstrap_admin_from_env(db)
     yield
 
 

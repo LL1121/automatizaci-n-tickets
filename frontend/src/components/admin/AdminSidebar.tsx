@@ -1,28 +1,52 @@
 "use client";
 
+import { ChangeMyPasswordDialog } from "@/components/admin/ChangeMyPasswordDialog";
 import { useAdminAuth } from "@/store/useAdminAuth";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
 
-const NAV = [
+type NavItem = { href: string; label: string; icon: ReactNode };
+
+const NAV: NavItem[] = [
   {
     href: "/admin",
     label: "Dashboard",
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+        />
       </svg>
     ),
   },
-] as const;
+  {
+    href: "/admin/users",
+    label: "Usuarios admin",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 014-4h2a4 4 0 014 4v2m-3-10a4 4 0 11-8 0 4 4 0 018 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z"
+        />
+      </svg>
+    ),
+  },
+];
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const username = useAdminAuth((s) => s.username);
+  const fullName = useAdminAuth((s) => s.fullName);
   const clear = useAdminAuth((s) => s.clear);
-  const initial = (username ?? "A").trim().charAt(0).toUpperCase() || "A";
+  const display = fullName?.trim() || username || "Administrador";
+  const initial = display.trim().charAt(0).toUpperCase() || "A";
+  const [openChangePwd, setOpenChangePwd] = useState(false);
 
   const logout = () => {
     clear();
@@ -71,18 +95,27 @@ export function AdminSidebar() {
             {initial}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{username ?? "Administrador"}</p>
-            <p className="truncate text-xs text-white/70">Sesión activa</p>
+            <p className="truncate text-sm font-medium">{display}</p>
+            <p className="truncate text-xs text-white/70">{username ? `@${username}` : "Sesión activa"}</p>
           </div>
         </div>
         <button
           type="button"
           className="mt-3 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10"
+          onClick={() => setOpenChangePwd(true)}
+        >
+          Cambiar contraseña
+        </button>
+        <button
+          type="button"
+          className="mt-2 w-full rounded-lg border border-white/20 px-3 py-2 text-sm text-white/90 transition hover:bg-white/10"
           onClick={logout}
         >
           Cerrar sesión
         </button>
       </div>
+
+      <ChangeMyPasswordDialog open={openChangePwd} onClose={() => setOpenChangePwd(false)} />
     </aside>
   );
 }

@@ -27,7 +27,12 @@ export function AdminLogin() {
     setSubmitting(true);
     try {
       const r = await adminLogin(username.trim(), password);
-      setSession({ token: r.token, username: r.username, expiresAt: r.expires_at });
+      setSession({
+        token: r.token,
+        username: r.username,
+        expiresAt: r.expires_at,
+        fullName: r.full_name ?? null,
+      });
       const nextRaw = search?.get("next") ?? "/admin";
       const next = nextRaw.startsWith("/admin") ? nextRaw : "/admin";
       router.replace(next);

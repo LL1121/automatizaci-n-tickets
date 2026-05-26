@@ -76,10 +76,20 @@ export function monthUtcIsoRange(year: number, month: number): { from: string; t
   return { from: start.toISOString(), to: end.toISOString() };
 }
 
+export type AdminUserDto = {
+  id: number;
+  username: string;
+  full_name: string | null;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  last_login_at: string | null;
+};
+
 export async function adminLogin(
   username: string,
   password: string,
-): Promise<{ token: string; username: string; expires_at: string }> {
+): Promise<{ token: string; username: string; expires_at: string; full_name?: string | null }> {
   const res = await fetch(`${getApiBase()}/admin/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -90,10 +100,73 @@ export async function adminLogin(
   return res.json();
 }
 
-export async function adminMe(): Promise<{ username: string; role: string }> {
+export async function adminMe(): Promise<AdminUserDto> {
   const res = await adminFetch(`${getApiBase()}/admin/auth/me`);
   if (!res.ok) throw new Error(`me ${res.status}`);
-  return res.json();
+  return res.json() as Promise<AdminUserDto>;
+}
+
+async function readError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    if (data && typeof data.detail === "string") return data.detail;
+  } catch {
+    /* ignore */
+  }
+  return `Error ${res.status}`;
+}
+
+export async function listAdminUsers(): Promise<AdminUserDto[]> {
+  const res = await adminFetch(`${getApiBase()}/admin/users`);
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminUserDto[];
+}
+
+export async function createAdminUser(body: {
+  username: string;
+  password: string;
+  full_name?: string | null;
+}): Promise<AdminUserDto> {
+  const res = await adminFetch(`${getApiBase()}/admin/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminUserDto;
+}
+
+export async function patchAdminUser(
+  id: number,
+  body: { full_name?: string | null; is_active?: boolean },
+): Promise<AdminUserDto> {
+  const res = await adminFetch(`${getApiBase()}/admin/users/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminUserDto;
+}
+
+export async function resetAdminPassword(id: number, newPassword: string): Promise<AdminUserDto> {
+  const res = await adminFetch(`${getApiBase()}/admin/users/${id}/password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminUserDto;
+}
+
+export async function changeMyPassword(currentPassword: string, newPassword: string): Promise<AdminUserDto> {
+  const res = await adminFetch(`${getApiBase()}/admin/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminUserDto;
 }
 
 export type BatchFileResult = {

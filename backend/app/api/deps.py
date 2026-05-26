@@ -5,8 +5,12 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Query, Request, status
+from sqlalchemy.orm import Session
 
 from app.core.security import decode_admin_token
+from app.db.session import get_db
+from app.models.admin_user import AdminUser
+from app.services.admin_users import get_admin_by_id, get_admin_by_username
 
 
 def _extract_bearer(request: Request) -> str | None:
@@ -21,6 +25,7 @@ def _extract_bearer(request: Request) -> str | None:
 
 def require_admin(
     request: Request,
+    db: Annotated[Session, Depends(get_db)],
     token_query: Annotated[
         str | None,
         Query(
@@ -29,8 +34,8 @@ def require_admin(
             description="JWT del admin como query (uso interno para <img src>).",
         ),
     ] = None,
-) -> dict:
-    """Valida JWT del header Authorization o, como fallback, ?token=... (img URLs)."""
+) -> AdminUser:
+    """Valida JWT (header o ?token=) y devuelve el AdminUser activo."""
     raw = _extract_bearer(request) or token_query
     if not raw:
         raise HTTPException(
@@ -51,7 +56,22 @@ def require_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Rol insuficiente.",
         )
-    return payload
+
+    admin: AdminUser | None = None
+    uid = payload.get("uid")
+    if isinstance(uid, int):
+        admin = get_admin_by_id(db, uid)
+    if admin is None:
+        sub = payload.get("sub")
+        if isinstance(sub, str):
+            admin = get_admin_by_username(db, sub)
+    if admin is None or not admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario admin inactivo o inexistente. Iniciá sesión nuevamente.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return admin
 
 
-AdminPrincipal = Annotated[dict, Depends(require_admin)]
+AdminPrincipal = Annotated[AdminUser, Depends(require_admin)]

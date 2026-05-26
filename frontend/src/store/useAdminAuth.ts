@@ -6,10 +6,17 @@ import { persist } from "zustand/middleware";
 type AdminAuthState = {
   token: string | null;
   username: string | null;
+  fullName: string | null;
   expiresAt: string | null;
   /** Marca para forzar redirecciones después de un 401 cliente. */
   hydrated: boolean;
-  setSession: (s: { token: string; username: string; expiresAt: string }) => void;
+  setSession: (s: {
+    token: string;
+    username: string;
+    expiresAt: string;
+    fullName?: string | null;
+  }) => void;
+  setFullName: (fullName: string | null) => void;
   clear: () => void;
   setHydrated: () => void;
   isAuthenticated: () => boolean;
@@ -20,11 +27,13 @@ export const useAdminAuth = create<AdminAuthState>()(
     (set, get) => ({
       token: null,
       username: null,
+      fullName: null,
       expiresAt: null,
       hydrated: false,
-      setSession: ({ token, username, expiresAt }) =>
-        set({ token, username, expiresAt }),
-      clear: () => set({ token: null, username: null, expiresAt: null }),
+      setSession: ({ token, username, expiresAt, fullName }) =>
+        set({ token, username, expiresAt, fullName: fullName ?? null }),
+      setFullName: (fullName) => set({ fullName }),
+      clear: () => set({ token: null, username: null, fullName: null, expiresAt: null }),
       setHydrated: () => set({ hydrated: true }),
       isAuthenticated: () => {
         const { token, expiresAt } = get();
@@ -41,6 +50,7 @@ export const useAdminAuth = create<AdminAuthState>()(
       partialize: (s) => ({
         token: s.token,
         username: s.username,
+        fullName: s.fullName,
         expiresAt: s.expiresAt,
       }),
       onRehydrateStorage: () => (state) => {

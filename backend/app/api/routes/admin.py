@@ -19,10 +19,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
 from app.core.config import get_settings
-from app.core.security import create_admin_token, verify_admin_credentials
+from app.core.security import create_admin_token, verify_password
 from app.db.session import get_db
+from app.models.admin_user import AdminUser
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
+from app.services import admin_users as admin_users_service
+from app.services.admin_users import AdminUserError
 from app.services.admin_stats import (
     count_tickets_filtered,
     effective_ticket_datetime,
@@ -56,23 +59,198 @@ class LoginResponse(BaseModel):
     token: str
     expires_at: str
     username: str
+    full_name: str | None = None
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    username: str
+    full_name: str | None
+    is_active: bool
+    created_at: str | None
+    updated_at: str | None
+    last_login_at: str | None
+
+
+def _admin_to_out(admin: AdminUser) -> AdminUserOut:
+    return AdminUserOut(
+        id=admin.id,
+        username=admin.username,
+        full_name=admin.full_name,
+        is_active=admin.is_active,
+        created_at=admin.created_at.isoformat() if admin.created_at else None,
+        updated_at=admin.updated_at.isoformat() if admin.updated_at else None,
+        last_login_at=admin.last_login_at.isoformat() if admin.last_login_at else None,
+    )
 
 
 @auth_router.post("/login", response_model=LoginResponse)
-def admin_login(body: LoginBody) -> LoginResponse:
-    if not verify_admin_credentials(body.username, body.password):
+def admin_login(body: LoginBody, db: Session = Depends(get_db)) -> LoginResponse:
+    admin = admin_users_service.authenticate(db, body.username, body.password)
+    if admin is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña inválidos.",
         )
-    settings = get_settings()
-    token, exp = create_admin_token(subject=settings.admin_username)
-    return LoginResponse(token=token, expires_at=exp.isoformat(), username=settings.admin_username)
+    token, exp = create_admin_token(subject=admin.username, admin_id=admin.id)
+    return LoginResponse(
+        token=token,
+        expires_at=exp.isoformat(),
+        username=admin.username,
+        full_name=admin.full_name,
+    )
 
 
-@auth_router.get("/me")
-def admin_me(principal: AdminPrincipal) -> dict[str, Any]:
-    return {"username": principal.get("sub"), "role": principal.get("role")}
+@auth_router.get("/me", response_model=AdminUserOut)
+def admin_me(principal: AdminPrincipal) -> AdminUserOut:
+    return _admin_to_out(principal)
+
+
+# ---------------------------------------------------------------------------
+# Gestión de usuarios admin
+# ---------------------------------------------------------------------------
+
+
+class AdminCreateBody(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+    full_name: str | None = Field(default=None, max_length=120)
+
+
+class AdminUpdateBody(BaseModel):
+    full_name: str | None = Field(default=None, max_length=120)
+    is_active: bool | None = None
+
+
+class AdminPasswordBody(BaseModel):
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class ChangeMyPasswordBody(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+@router.get("/users", response_model=list[AdminUserOut])
+def list_admin_users(
+    _: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> list[AdminUserOut]:
+    return [_admin_to_out(a) for a in admin_users_service.list_admins(db)]
+
+
+@router.post("/users", response_model=AdminUserOut, status_code=status.HTTP_201_CREATED)
+def create_admin_user(
+    body: AdminCreateBody,
+    _: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> AdminUserOut:
+    try:
+        admin = admin_users_service.create_admin(
+            db,
+            username=body.username,
+            password=body.password,
+            full_name=body.full_name,
+        )
+    except AdminUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return _admin_to_out(admin)
+
+
+@router.patch("/users/{admin_id}", response_model=AdminUserOut)
+def patch_admin_user(
+    admin_id: int,
+    body: AdminUpdateBody,
+    principal: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> AdminUserOut:
+    target = admin_users_service.get_admin_by_id(db, admin_id)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario admin no encontrado.")
+    if body.full_name is not None:
+        target = admin_users_service.update_full_name(db, target, body.full_name)
+    if body.is_active is not None:
+        if body.is_active is False and principal.id == target.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No podés desactivar tu propio usuario.",
+            )
+        try:
+            target = admin_users_service.set_active(db, target, body.is_active)
+        except AdminUserError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+    return _admin_to_out(target)
+
+
+@router.post("/users/{admin_id}/password", response_model=AdminUserOut)
+def admin_reset_password(
+    admin_id: int,
+    body: AdminPasswordBody,
+    _: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> AdminUserOut:
+    target = admin_users_service.get_admin_by_id(db, admin_id)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario admin no encontrado.")
+    try:
+        target = admin_users_service.set_password(db, target, body.new_password)
+    except AdminUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return _admin_to_out(target)
+
+
+@router.delete("/users/{admin_id}", response_model=AdminUserOut)
+def deactivate_admin_user(
+    admin_id: int,
+    principal: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> AdminUserOut:
+    target = admin_users_service.get_admin_by_id(db, admin_id)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario admin no encontrado.")
+    if principal.id == target.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No podés desactivar tu propio usuario.",
+        )
+    try:
+        target = admin_users_service.set_active(db, target, False)
+    except AdminUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return _admin_to_out(target)
+
+
+@auth_router.post("/change-password", response_model=AdminUserOut)
+def change_my_password(
+    body: ChangeMyPasswordBody,
+    principal: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> AdminUserOut:
+    if not verify_password(body.current_password, principal.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La contraseña actual no es correcta.",
+        )
+    try:
+        updated = admin_users_service.set_password(db, principal, body.new_password)
+    except AdminUserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    return _admin_to_out(updated)
 
 SORT_COLUMNS = Literal["fecha", "patente", "confidence_score", "ingested_at", "id"]
 SORT_ORDER = Literal["asc", "desc"]
@@ -513,7 +691,7 @@ async def admin_upload_batch(
             detail=f"Demasiados archivos en un solo lote (máximo {_BATCH_MAX_FILES}). Subilos en tandas.",
         )
 
-    operator_name = f"Carga admin · {principal.get('sub') or 'admin'}"
+    operator_name = f"Carga admin · {principal.username}"
     results: list[BatchTicketResult] = []
 
     for f in files:

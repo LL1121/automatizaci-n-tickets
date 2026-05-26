@@ -63,3 +63,23 @@ def apply_schema_migrations(engine: Engine) -> None:
             )
             conn.execute(text("CREATE INDEX ix_field_devices_device_uid ON field_devices (device_uid)"))
             logger.info("Migración: tabla field_devices creada")
+
+        if "admin_users" not in table_names:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE admin_users (
+                        id SERIAL PRIMARY KEY,
+                        username VARCHAR(64) NOT NULL UNIQUE,
+                        password_hash VARCHAR(255) NOT NULL,
+                        full_name VARCHAR(120),
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        last_login_at TIMESTAMPTZ
+                    )
+                    """
+                )
+            )
+            conn.execute(text("CREATE INDEX ix_admin_users_username ON admin_users (username)"))
+            logger.info("Migración: tabla admin_users creada")
