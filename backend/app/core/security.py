@@ -9,8 +9,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from app.core.config import get_settings
 
@@ -19,21 +19,19 @@ logger = logging.getLogger(__name__)
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "fuelops-admin"
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(plain: str) -> str:
     if not plain:
         raise ValueError("La contraseña no puede quedar vacía.")
-    return _pwd_ctx.hash(plain)
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     if not plain or not hashed:
         return False
     try:
-        return _pwd_ctx.verify(plain, hashed)
-    except Exception:  # noqa: BLE001
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("ascii"))
+    except (ValueError, TypeError):
         return False
 
 

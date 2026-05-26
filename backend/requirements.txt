@@ -11,5 +11,5 @@ python-dotenv==1.0.1
 Pillow==11.0.0
 openpyxl==3.1.5
 PyJWT==2.10.1
-passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
 pypdfium2==4.30.0
