@@ -20,6 +20,10 @@ JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "fuelops-admin"
 
 
+class AuthConfigError(RuntimeError):
+    """Configuración de auth incompleta (p. ej. JWT_SECRET vacío)."""
+
+
 def hash_password(plain: str) -> str:
     if not plain:
         raise ValueError("La contraseña no puede quedar vacía.")
@@ -38,8 +42,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 def _jwt_secret() -> str:
     secret = get_settings().jwt_secret.strip()
     if not secret:
-        raise RuntimeError(
-            "JWT_SECRET no está configurado. Definí JWT_SECRET en el entorno para habilitar el panel admin.",
+        raise AuthConfigError(
+            "JWT_SECRET no está configurado en el servidor. "
+            "Agregalo al .env y recreá el contenedor api: docker compose up -d --force-recreate api",
         )
     return secret
 

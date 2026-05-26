@@ -96,7 +96,7 @@ export async function adminLogin(
     body: JSON.stringify({ username, password }),
   });
   if (res.status === 401) throw new Error("Usuario o contraseña inválidos.");
-  if (!res.ok) throw new Error(`Error ${res.status} al iniciar sesión`);
+  if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
 

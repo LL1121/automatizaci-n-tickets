@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
 from app.core.config import get_settings
-from app.core.security import create_admin_token, verify_password
+from app.core.security import AuthConfigError, create_admin_token, verify_password
 from app.db.session import get_db
 from app.models.admin_user import AdminUser
 from app.models.ticket import Ticket
@@ -92,7 +92,13 @@ def admin_login(body: LoginBody, db: Session = Depends(get_db)) -> LoginResponse
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña inválidos.",
         )
-    token, exp = create_admin_token(subject=admin.username, admin_id=admin.id)
+    try:
+        token, exp = create_admin_token(subject=admin.username, admin_id=admin.id)
+    except AuthConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     return LoginResponse(
         token=token,
         expires_at=exp.isoformat(),
