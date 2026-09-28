@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Select, and_, case, func, select
+from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
@@ -118,6 +118,7 @@ def tickets_query_filtered(
     min_confidence: float | None,
     max_confidence: float | None,
     is_verified: bool | None,
+    inconsistencias_only: bool = False,
 ) -> Select[Any]:
     eff = effective_ticket_datetime()
     q = (
@@ -127,9 +128,18 @@ def tickets_query_filtered(
             Ticket.nro_ticket,
             Ticket.litros,
             Ticket.kilometraje,
+            Ticket.km_o_horas,
             Ticket.tipo_combustible,
             Ticket.remito,
             Ticket.operador_nombre,
+            Ticket.legajo_conductor,
+            Ticket.nombre_conductor,
+            Ticket.tipo_actividad,
+            Ticket.estacion_servicio,
+            Ticket.monto,
+            Ticket.rendicion_tardia,
+            Ticket.desvio_detectado,
+            Ticket.desvio_pct,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.url_imagen,
@@ -138,6 +148,7 @@ def tickets_query_filtered(
             Ticket.verified_at,
             Ticket.vehicle_id,
             Vehicle.patente,
+            Vehicle.tipo.label("vehicle_tipo"),
         )
         .select_from(Ticket)
         .outerjoin(Vehicle, Vehicle.id == Ticket.vehicle_id)
@@ -155,6 +166,8 @@ def tickets_query_filtered(
         conds.append(and_(Ticket.confidence_score.is_not(None), Ticket.confidence_score <= max_confidence))
     if is_verified is not None:
         conds.append(Ticket.is_verified.is_(is_verified))
+    if inconsistencias_only:
+        conds.append(or_(Ticket.rendicion_tardia.is_(True), Ticket.desvio_detectado.is_(True)))
     if conds:
         q = q.where(and_(*conds))
     return q
@@ -168,6 +181,7 @@ def count_tickets_filtered(
     min_confidence: float | None,
     max_confidence: float | None,
     is_verified: bool | None,
+    inconsistencias_only: bool = False,
 ) -> Select[Any]:
     base = tickets_query_filtered(
         from_date=from_date,
@@ -176,6 +190,7 @@ def count_tickets_filtered(
         min_confidence=min_confidence,
         max_confidence=max_confidence,
         is_verified=is_verified,
+        inconsistencias_only=inconsistencias_only,
     ).subquery()
     return select(func.count()).select_from(base)
 

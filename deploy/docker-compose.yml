@@ -1,0 +1,61 @@
+# Producción Lyntrix / Hetzner — tickets.irrigacionmalargue.net
+#
+# Requisitos previos:
+#   1. Red externa: docker network create proxy_net   (si aún no existe)
+#   2. Ejecutar UNA vez deploy/init-postgres_core.sql en postgres_core
+#   3. Copiar .env.example → .env y completar secretos (en la raíz del repo)
+#   4. Agregar el snippet de deploy/Caddyfile al Caddy central (proxy_net)
+#
+# Deploy (desde la raíz del repo):
+#   docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
+#
+# NO publica ports (el proxy Caddy entra por proxy_net vía container_name).
+# NO incluye Postgres (usa postgres_core).
+
+name: tickets
+
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: tickets_api
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: true
+    environment:
+      # Forzar host del DB compartido (aunque .env traiga localhost de desarrollo)
+      POSTGRES_HOST: postgres_core
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - tickets_uploads:/data/uploads
+    networks:
+      - proxy_net
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api-tickets.irrigacionmalargue.net}
+    container_name: tickets_web
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: true
+    depends_on:
+      - api
+    networks:
+      - proxy_net
+
+volumes:
+  tickets_uploads:
+
+networks:
+  proxy_net:
+    external: true

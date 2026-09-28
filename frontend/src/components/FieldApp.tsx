@@ -3,16 +3,18 @@
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { countInboxTickets } from "@/lib/offline-db";
+import type { ConductorForm } from "@/lib/circular";
 import { PendingInbox } from "@/components/PendingInbox";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useVehicleStore } from "@/store/useVehicleStore";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { CameraCapture } from "@/components/CameraCapture";
+import { ConductorStep } from "@/components/ConductorStep";
 import { OperatorGate } from "@/components/OperatorGate";
 import { VehicleSelector } from "@/components/VehicleSelector";
 
-type Step = "auth" | "vehicle" | "camera" | "feedback" | "pending";
+type Step = "auth" | "vehicle" | "conductor" | "camera" | "feedback" | "pending";
 
 type FeedbackState =
   | { step: "feedback"; variant: "synced" }
@@ -44,6 +46,7 @@ export function FieldApp() {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [conductor, setConductor] = useState<ConductorForm | null>(null);
 
   const refreshPending = useCallback(async () => {
     try {
@@ -81,8 +84,10 @@ export function FieldApp() {
       return;
     }
     setStep((prev) => {
-      if (prev === "pending" || prev === "feedback" || prev === "camera") return prev;
-      if (prev === "auth" || prev === "vehicle") return "camera";
+      if (prev === "pending" || prev === "feedback" || prev === "camera" || prev === "conductor") {
+        return prev;
+      }
+      if (prev === "auth" || prev === "vehicle") return "conductor";
       return prev;
     });
   }, [token, vehicleId]);
@@ -93,6 +98,11 @@ export function FieldApp() {
 
   const handleVehicleChosen = () => {
     setFeedback(null);
+    setStep("conductor");
+  };
+
+  const handleConductorDone = (data: ConductorForm) => {
+    setConductor(data);
     setStep("camera");
   };
 
@@ -122,17 +132,28 @@ export function FieldApp() {
       ? "auth"
       : step === "vehicle"
         ? "vehicle"
-        : step === "camera"
-          ? "camera"
-          : step === "pending"
-            ? "pending"
-            : feedback
-              ? `feedback-${feedback.variant}`
-              : "feedback";
+        : step === "conductor"
+          ? "conductor"
+          : step === "camera"
+            ? "camera"
+            : step === "pending"
+              ? "pending"
+              : feedback
+                ? `feedback-${feedback.variant}`
+                : "feedback";
 
   if (!mounted) {
     return <div className="min-h-dvh bg-field-bg" aria-busy="true" />;
   }
+
+  const conductorMeta =
+    conductor && conductor.actividad
+      ? {
+          legajoConductor: conductor.legajo,
+          nombreConductor: conductor.nombre,
+          tipoActividad: conductor.actividad,
+        }
+      : null;
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-8 pt-4">
@@ -197,6 +218,7 @@ export function FieldApp() {
               onClick={() => {
                 logout();
                 clearVehicle();
+                setConductor(null);
               }}
               className="btn-secondary mt-6 w-full"
             >
@@ -205,24 +227,57 @@ export function FieldApp() {
           </div>
         ) : null}
 
-        {step === "camera" && vehicleId != null && patente != null ? (
+        {step === "conductor" ? (
+          <motion.div key="conductor" {...pageTransition} className="flex flex-1 flex-col">
+            <ConductorStep
+              initial={conductor ?? undefined}
+              onContinue={handleConductorDone}
+              onBack={() => {
+                clearVehicle();
+                setStep("vehicle");
+              }}
+            />
+          </motion.div>
+        ) : null}
+
+        {step === "camera" && vehicleId != null && patente != null && conductorMeta ? (
           <motion.div key="camera" {...pageTransition} className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-3 flex shrink-0 items-center justify-between rounded-xl bg-field-surface px-4 py-2.5 text-sm ring-1 ring-field-border">
-              <span className="text-field-muted">
-                Vehículo <span className="font-mono font-medium text-field-text">{patente}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  clearVehicle();
-                  setStep("vehicle");
-                }}
-                className="text-field-accent underline-offset-2 hover:underline"
-              >
-                Cambiar
-              </button>
+            <div className="mb-3 flex shrink-0 flex-col gap-1 rounded-xl bg-field-surface px-4 py-2.5 text-sm ring-1 ring-field-border">
+              <div className="flex items-center justify-between">
+                <span className="text-field-muted">
+                  Vehículo <span className="font-mono font-medium text-field-text">{patente}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearVehicle();
+                    setConductor(null);
+                    setStep("vehicle");
+                  }}
+                  className="text-field-accent underline-offset-2 hover:underline"
+                >
+                  Cambiar
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-xs text-field-muted">
+                <span>
+                  {conductorMeta.nombreConductor} · Legajo {conductorMeta.legajoConductor}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setStep("conductor")}
+                  className="text-field-accent underline-offset-2 hover:underline"
+                >
+                  Editar
+                </button>
+              </div>
             </div>
-            <CameraCapture vehicleId={vehicleId} patente={patente} onResult={handleCaptureResult} />
+            <CameraCapture
+              vehicleId={vehicleId}
+              patente={patente}
+              conductor={conductorMeta}
+              onResult={handleCaptureResult}
+            />
           </motion.div>
         ) : null}
 
@@ -265,7 +320,7 @@ export function FieldApp() {
                 type="button"
                 onClick={() => {
                   setFeedback(null);
-                  setStep("camera");
+                  setStep(conductorMeta ? "camera" : "conductor");
                 }}
                 className="btn-primary min-h-touch w-full py-4 text-base"
               >
@@ -278,7 +333,7 @@ export function FieldApp() {
         {step === "pending" ? (
           <div key="pending" {...pageTransition} className="flex flex-1 flex-col">
             <PendingInbox
-              onBack={() => setStep(vehicleId != null ? "camera" : "vehicle")}
+              onBack={() => setStep(vehicleId != null && conductorMeta ? "camera" : vehicleId != null ? "conductor" : "vehicle")}
               onChanged={() => void refreshPending()}
             />
           </div>

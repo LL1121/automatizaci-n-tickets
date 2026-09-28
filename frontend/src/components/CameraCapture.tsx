@@ -2,7 +2,7 @@
 
 import { guideCropOnVideo } from "@/lib/camera-crop";
 import { persistAndTryUpload } from "@/lib/sync-queue";
-import { UploadHttpError } from "@/lib/upload-ticket";
+import { UploadHttpError, type UploadConductorMeta } from "@/lib/upload-ticket";
 import gsap from "gsap";
 import { motion } from "framer-motion";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
@@ -14,6 +14,7 @@ const GUIDE_HEIGHT_RATIO = 0.84;
 type Props = {
   vehicleId: number;
   patente: string;
+  conductor: UploadConductorMeta;
   onResult: (
     r:
       | { mode: "synced" }
@@ -22,7 +23,7 @@ type Props = {
   ) => void;
 };
 
-export function CameraCapture({ vehicleId, patente, onResult }: Props) {
+export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -172,7 +173,7 @@ export function CameraCapture({ vehicleId, patente, onResult }: Props) {
         setBusy(false);
         return;
       }
-      const outcome = await persistAndTryUpload(file, vehicleId, patente);
+      const outcome = await persistAndTryUpload(file, vehicleId, patente, conductor);
       if (outcome.mode === "synced") {
         onResult({ mode: "synced" });
       } else {

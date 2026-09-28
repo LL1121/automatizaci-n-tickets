@@ -1,19 +1,18 @@
-# DNS (mismo IP del servidor):
-#   tickets.irrigacionmalargue.net      → app Next.js (PWA + admin)
-#   api-tickets.irrigacionmalargue.net  → FastAPI
+# Fragmento para el Caddy CENTRAL de Lyntrix (red proxy_net).
+# Los hostnames son los container_name de deploy/docker-compose.yml.
 #
-# Levantar también el proxy (TLS automático con Let's Encrypt):
-#   docker compose -f docker-compose.yml -f deploy/compose.caddy.yml up -d --build
+# DNS A/AAAA (ambos → IP del VPS Hetzner):
+#   tickets.irrigacionmalargue.net
+#   api-tickets.irrigacionmalargue.net
 #
-# El frontend se debe construir con la URL pública del API (build-arg en compose):
-#   NEXT_PUBLIC_API_URL=https://api-tickets.irrigacionmalargue.net
+# Si antes usabas fuelops_web / fuelops_api, actualizá reverse_proxy a tickets_web / tickets_api.
 
 tickets.irrigacionmalargue.net {
 	encode gzip zstd
-	reverse_proxy frontend:3000
+	reverse_proxy tickets_web:3000
 }
 
 api-tickets.irrigacionmalargue.net {
 	encode gzip zstd
-	reverse_proxy api:8000
+	reverse_proxy tickets_api:8000
 }

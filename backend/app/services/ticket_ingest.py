@@ -28,6 +28,7 @@ from app.services.ai_engine import (
     AIQuotaExceededError,
     extract_ticket_from_image,
 )
+from app.services.consumption import apply_ticket_flags, sync_km_o_horas_from_kilometraje
 from app.services.image_preprocess import ImagePreprocessError, preprocess_for_vision
 from app.services.plate import normalize_patente, patentes_coinciden
 
@@ -92,9 +93,18 @@ def _ticket_to_dict(ticket: Ticket, *, patente_leida: str | None) -> dict:
         "nro_ticket": ticket.nro_ticket,
         "litros": float(ticket.litros) if ticket.litros is not None else None,
         "kilometraje": ticket.kilometraje,
+        "km_o_horas": float(ticket.km_o_horas) if ticket.km_o_horas is not None else None,
         "tipo_combustible": ticket.tipo_combustible,
         "remito": ticket.remito,
         "operador_nombre": ticket.operador_nombre,
+        "legajo_conductor": ticket.legajo_conductor,
+        "nombre_conductor": ticket.nombre_conductor,
+        "tipo_actividad": ticket.tipo_actividad,
+        "estacion_servicio": ticket.estacion_servicio,
+        "monto": float(ticket.monto) if ticket.monto is not None else None,
+        "rendicion_tardia": bool(ticket.rendicion_tardia),
+        "desvio_detectado": bool(ticket.desvio_detectado),
+        "desvio_pct": ticket.desvio_pct,
         "fecha": ticket.fecha.isoformat() if ticket.fecha else None,
         "url_imagen": ticket.url_imagen,
         "confidence_score": ticket.confidence_score,
@@ -114,6 +124,10 @@ def ingest_ticket_image(
     expected_patente: str | None = None,
     enforce_patente_match: bool = False,
     auto_assign_vehicle: bool = True,
+    vehicle_id: int | None = None,
+    legajo_conductor: str | None = None,
+    nombre_conductor: str | None = None,
+    tipo_actividad: str | None = None,
 ) -> IngestOutcome:
     """Procesa una imagen y la persiste como ticket; devuelve outcome con detalle."""
     settings = get_settings()
@@ -181,8 +195,8 @@ def ingest_ticket_image(
             http_status=409,
         )
 
-    resolved_vehicle_id: int | None = None
-    if auto_assign_vehicle and patente_leida:
+    resolved_vehicle_id: int | None = vehicle_id
+    if resolved_vehicle_id is None and auto_assign_vehicle and patente_leida:
         match = db.scalar(select(Vehicle).where(Vehicle.patente == patente_leida))
         if match is not None:
             resolved_vehicle_id = match.id
@@ -201,6 +215,7 @@ def ingest_ticket_image(
             http_status=507,
         )
 
+    estacion = (extracted.estacion_servicio or "").strip()[:160] or None
     ticket = Ticket(
         cuit_proveedor=cuit,
         nro_ticket=nro,
@@ -214,8 +229,15 @@ def ingest_ticket_image(
         vehicle_id=resolved_vehicle_id,
         field_device_id=field_device_id,
         operador_nombre=operator_name,
+        legajo_conductor=(legajo_conductor or "").strip()[:32] or None,
+        nombre_conductor=(nombre_conductor or "").strip()[:160] or None,
+        tipo_actividad=(tipo_actividad or "").strip()[:64] or None,
+        estacion_servicio=estacion,
+        monto=Decimal(str(extracted.monto)) if extracted.monto is not None else None,
         ingested_at=datetime.now(timezone.utc),
     )
+    sync_km_o_horas_from_kilometraje(ticket)
+    apply_ticket_flags(db, ticket)
     db.add(ticket)
     try:
         db.commit()

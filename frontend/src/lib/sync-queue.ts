@@ -4,6 +4,7 @@ import {
   isPermanentUploadFailure,
   isQuotaBlockedError,
   UploadHttpError,
+  type UploadConductorMeta,
 } from "@/lib/upload-ticket";
 import { RETRY_BACKOFF_MS } from "@/lib/sync-policy";
 import {
@@ -48,6 +49,15 @@ function statusAfterError(e: unknown, manual: boolean): PendingTicketStatus {
   return "pending";
 }
 
+function conductorFromRow(row: PendingTicketRecord): UploadConductorMeta | undefined {
+  if (!row.legajoConductor || !row.nombreConductor || !row.tipoActividad) return undefined;
+  return {
+    legajoConductor: row.legajoConductor,
+    nombreConductor: row.nombreConductor,
+    tipoActividad: row.tipoActividad,
+  };
+}
+
 export async function flushPendingTickets(options: FlushOptions = {}): Promise<FlushResult> {
   const { manual = false, forceIds = [], maxItems = manual ? 1 : 0 } = options;
   const errors: string[] = [];
@@ -89,7 +99,7 @@ export async function flushPendingTickets(options: FlushOptions = {}): Promise<F
     });
 
     try {
-      await uploadTicketFile(file, row.vehicleId, getOrCreateDeviceUid());
+      await uploadTicketFile(file, row.vehicleId, getOrCreateDeviceUid(), conductorFromRow(row));
       await deletePendingTicket(row.id);
       uploaded += 1;
     } catch (e) {
@@ -115,6 +125,7 @@ export async function persistAndTryUpload(
   file: File,
   vehicleId: number,
   patente: string,
+  conductor: UploadConductorMeta,
 ): Promise<{ mode: "synced" } | { mode: "queued"; navigatorOffline: boolean }> {
   const id = crypto.randomUUID();
   const imageBuffer = await file.arrayBuffer();
@@ -127,12 +138,15 @@ export async function persistAndTryUpload(
     mimeType: file.type || "image/jpeg",
     createdAt: Date.now(),
     status: "pending",
+    legajoConductor: conductor.legajoConductor,
+    nombreConductor: conductor.nombreConductor,
+    tipoActividad: conductor.tipoActividad,
   };
 
   await putPendingTicket(record);
 
   try {
-    await uploadTicketFile(file, vehicleId, getOrCreateDeviceUid());
+    await uploadTicketFile(file, vehicleId, getOrCreateDeviceUid(), conductor);
     await deletePendingTicket(id);
     return { mode: "synced" };
   } catch (e) {

@@ -19,6 +19,10 @@ export interface PendingTicketRecord {
   /** No reintentar antes de este timestamp (ms). */
   nextRetryAt?: number;
   lastAttemptAt?: number;
+  /** Circular 08 — datos del conductor (opcionales en registros viejos). */
+  legajoConductor?: string;
+  nombreConductor?: string;
+  tipoActividad?: string;
 }
 
 interface FuelOpsDB extends DBSchema {
@@ -30,7 +34,7 @@ interface FuelOpsDB extends DBSchema {
 }
 
 const DB_NAME = "fuelops-field";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export async function openOfflineDB(): Promise<IDBPDatabase<FuelOpsDB>> {
   return openDB<FuelOpsDB>(DB_NAME, DB_VERSION, {
@@ -38,8 +42,8 @@ export async function openOfflineDB(): Promise<IDBPDatabase<FuelOpsDB>> {
       if (!db.objectStoreNames.contains("pending-tickets")) {
         const store = db.createObjectStore("pending-tickets", { keyPath: "id" });
         store.createIndex("by-created", "createdAt");
-      } else if (oldVersion < 2) {
-        // v2: patente, nextRetryAt, lastAttemptAt — valores opcionales en registros viejos
+      } else if (oldVersion < 3) {
+        // v3: legajoConductor, nombreConductor, tipoActividad — opcionales en registros viejos
       }
     },
   });
@@ -63,7 +67,17 @@ export async function getPendingTicket(id: string): Promise<PendingTicketRecord 
 export async function updatePendingTicket(
   id: string,
   patch: Partial<
-    Pick<PendingTicketRecord, "status" | "lastError" | "nextRetryAt" | "lastAttemptAt" | "patente">
+    Pick<
+      PendingTicketRecord,
+      | "status"
+      | "lastError"
+      | "nextRetryAt"
+      | "lastAttemptAt"
+      | "patente"
+      | "legajoConductor"
+      | "nombreConductor"
+      | "tipoActividad"
+    >
   >,
 ): Promise<void> {
   const db = await openOfflineDB();

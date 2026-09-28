@@ -10,9 +10,18 @@ export type AdminTicketRow = {
   nro_ticket: string;
   litros: number | null;
   kilometraje: number | null;
+  km_o_horas: number | null;
   tipo_combustible: string | null;
   remito: string | null;
   operador_nombre: string | null;
+  legajo_conductor: string | null;
+  nombre_conductor: string | null;
+  tipo_actividad: string | null;
+  estacion_servicio: string | null;
+  monto: number | null;
+  rendicion_tardia: boolean;
+  desvio_detectado: boolean;
+  desvio_pct: number | null;
   fecha: string | null;
   ingested_at: string | null;
   url_imagen: string;
@@ -21,6 +30,7 @@ export type AdminTicketRow = {
   verified_at: string | null;
   vehicle_id: number | null;
   patente: string | null;
+  vehicle_tipo: string | null;
 };
 
 export type AdminSummary = {
@@ -226,6 +236,7 @@ export async function fetchAdminTickets(params: {
   sortOrder: AdminSortOrder;
   limit?: number;
   offset?: number;
+  inconsistencias?: boolean;
 }): Promise<{ total: number; items: AdminTicketRow[] }> {
   const q = new URLSearchParams({
     from_date: params.from,
@@ -235,6 +246,7 @@ export async function fetchAdminTickets(params: {
     limit: String(params.limit ?? 100),
     offset: String(params.offset ?? 0),
   });
+  if (params.inconsistencias) q.set("inconsistencias", "true");
   const res = await adminFetch(`${getApiBase()}/admin/tickets?${q}`);
   if (!res.ok) throw new Error(`tickets ${res.status}`);
   return res.json() as Promise<{ total: number; items: AdminTicketRow[] }>;
@@ -245,9 +257,15 @@ export async function patchAdminTicket(
   body: Partial<{
     litros: number | null;
     kilometraje: number | null;
+    km_o_horas: number | null;
     remito: string | null;
     fecha: string | null;
     is_verified: boolean;
+    legajo_conductor: string | null;
+    nombre_conductor: string | null;
+    tipo_actividad: string | null;
+    estacion_servicio: string | null;
+    monto: number | null;
   }>,
 ): Promise<AdminTicketRow> {
   const res = await adminFetch(`${getApiBase()}/admin/tickets/${id}`, {
@@ -260,6 +278,41 @@ export async function patchAdminTicket(
     throw new Error(t || `PATCH ${res.status}`);
   }
   return res.json() as Promise<AdminTicketRow>;
+}
+
+export type AdminVehicleRow = {
+  id: number;
+  patente: string;
+  capacidad_tanque: number | null;
+  tipo: string | null;
+  consumo_esperado: number | null;
+  unidad_consumo: string;
+  umbral_desvio: number;
+};
+
+export async function listAdminVehicles(): Promise<AdminVehicleRow[]> {
+  const res = await adminFetch(`${getApiBase()}/admin/vehicles`);
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminVehicleRow[];
+}
+
+export async function patchAdminVehicle(
+  id: number,
+  body: Partial<{
+    tipo: string | null;
+    consumo_esperado: number | null;
+    unidad_consumo: string | null;
+    umbral_desvio: number | null;
+    capacidad_tanque: number | null;
+  }>,
+): Promise<AdminVehicleRow> {
+  const res = await adminFetch(`${getApiBase()}/admin/vehicles/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as AdminVehicleRow;
 }
 
 /**
@@ -281,4 +334,11 @@ export function exportMonthlyUrl(year: number, month: number, token?: string | n
   const q = new URLSearchParams({ year: String(year), month: String(month) });
   if (t) q.set("token", t);
   return `${getApiBase()}/admin/export/monthly.xlsx?${q}`;
+}
+
+export function exportPlanillaOficialUrl(year: number, month: number, token?: string | null): string {
+  const t = token ?? getAdminToken();
+  const q = new URLSearchParams({ year: String(year), month: String(month) });
+  if (t) q.set("token", t);
+  return `${getApiBase()}/admin/auditoria/planilla.xlsx?${q}`;
 }

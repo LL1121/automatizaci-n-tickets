@@ -44,9 +44,19 @@ if [[ -n "$PASSWORD" && $GENERATE -eq 1 ]]; then
   exit 2
 fi
 
-if ! docker compose ps api --status running 2>/dev/null | grep -q running; then
+if [[ -z "${COMPOSE_CMD+x}" ]]; then
+  COMPOSE_CMD=(docker compose)
+  if [[ -n "${COMPOSE_FILE:-}" ]]; then
+    COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
+  elif docker compose -f deploy/docker-compose.yml ps api --status running 2>/dev/null | grep -q running; then
+    COMPOSE_CMD=(docker compose -f deploy/docker-compose.yml)
+  fi
+fi
+
+if ! "${COMPOSE_CMD[@]}" ps api --status running 2>/dev/null | grep -q running; then
   echo "Error: el contenedor api no está en ejecución."
-  echo "Levantalo primero con: docker compose up -d"
+  echo "Local:  docker compose up -d"
+  echo "Prod:   docker compose -f deploy/docker-compose.yml --env-file .env up -d"
   exit 1
 fi
 
@@ -95,7 +105,7 @@ if [[ $GENERATE -eq 1 || -n "$PASSWORD" ]]; then
   EXEC_FLAGS+=(-T)
 fi
 
-docker compose exec "${EXEC_FLAGS[@]}" api python -m app.cli.manage_admin "${ARGS[@]}"
+"${COMPOSE_CMD[@]}" exec "${EXEC_FLAGS[@]}" api python -m app.cli.manage_admin "${ARGS[@]}"
 
 echo
 echo "Listo. Entrá con ese usuario en /admin/login."

@@ -24,12 +24,32 @@ class Ticket(Base):
     nro_ticket: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     litros: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     kilometraje: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    km_o_horas: Mapped[Decimal | None] = mapped_column(Numeric(14, 3), nullable=True)
     tipo_combustible: Mapped[str] = mapped_column(String(64), nullable=False, default="INFINIA DIESEL")
     remito: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fecha: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     operador_nombre: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    legajo_conductor: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    nombre_conductor: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    tipo_actividad: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    estacion_servicio: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    monto: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     url_imagen: Mapped[str] = mapped_column(String(1024), nullable=False)
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    rendicion_tardia: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+    desvio_detectado: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+    desvio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
