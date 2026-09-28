@@ -14,16 +14,17 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
 from pydantic import BaseModel, Field
-from sqlalchemy import asc, desc, select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
+from app.core.circular import ACTIVIDAD_SET, PLANILLA_HEADERS, VEHICLE_TIPO_LABELS
 from app.core.config import get_settings
 from app.core.security import AuthConfigError, create_admin_token, verify_password
 from app.db.session import get_db
 from app.models.admin_user import AdminUser
 from app.models.ticket import Ticket
-from app.models.vehicle import Vehicle
+from app.models.vehicle import UNIDADES_CONSUMO, VEHICLE_TIPOS, Vehicle
 from app.services import admin_users as admin_users_service
 from app.services.admin_users import AdminUserError
 from app.services.admin_stats import (
@@ -35,6 +36,7 @@ from app.services.admin_stats import (
     tickets_for_export,
     tickets_query_filtered,
 )
+from app.services.consumption import apply_ticket_flags, previous_ticket_reading, reading_value, sync_km_o_horas_from_kilometraje
 from app.services.image_segmentation import (
     decode_image_bytes,
     encode_image_jpeg,
@@ -265,9 +267,15 @@ SORT_ORDER = Literal["asc", "desc"]
 class TicketUpdateBody(BaseModel):
     litros: float | None = None
     kilometraje: int | None = None
+    km_o_horas: float | None = None
     remito: str | None = None
     fecha: datetime | None = None
     is_verified: bool | None = None
+    legajo_conductor: str | None = None
+    nombre_conductor: str | None = None
+    tipo_actividad: str | None = None
+    estacion_servicio: str | None = None
+    monto: float | None = None
 
 
 def _ticket_row_dict(r: dict) -> dict[str, Any]:
@@ -277,9 +285,18 @@ def _ticket_row_dict(r: dict) -> dict[str, Any]:
         "nro_ticket": r["nro_ticket"],
         "litros": float(r["litros"]) if r["litros"] is not None else None,
         "kilometraje": r["kilometraje"],
+        "km_o_horas": float(r["km_o_horas"]) if r.get("km_o_horas") is not None else None,
         "tipo_combustible": r.get("tipo_combustible"),
         "remito": r.get("remito"),
         "operador_nombre": r.get("operador_nombre"),
+        "legajo_conductor": r.get("legajo_conductor"),
+        "nombre_conductor": r.get("nombre_conductor"),
+        "tipo_actividad": r.get("tipo_actividad"),
+        "estacion_servicio": r.get("estacion_servicio"),
+        "monto": float(r["monto"]) if r.get("monto") is not None else None,
+        "rendicion_tardia": bool(r.get("rendicion_tardia") or False),
+        "desvio_detectado": bool(r.get("desvio_detectado") or False),
+        "desvio_pct": r.get("desvio_pct"),
         "fecha": r["fecha"].isoformat() if r["fecha"] else None,
         "ingested_at": r["ingested_at"].isoformat() if r["ingested_at"] else None,
         "url_imagen": r["url_imagen"],
@@ -288,6 +305,7 @@ def _ticket_row_dict(r: dict) -> dict[str, Any]:
         "verified_at": r["verified_at"].isoformat() if r.get("verified_at") else None,
         "vehicle_id": r["vehicle_id"],
         "patente": r["patente"],
+        "vehicle_tipo": r.get("vehicle_tipo"),
     }
 
 
@@ -351,6 +369,7 @@ def admin_list_tickets(
     min_confidence: Annotated[float | None, Query(ge=0, le=1)] = None,
     max_confidence: Annotated[float | None, Query(ge=0, le=1)] = None,
     is_verified: Annotated[bool | None, Query()] = None,
+    inconsistencias: Annotated[bool, Query()] = False,
     sort_by: SORT_COLUMNS = "ingested_at",
     sort_order: SORT_ORDER = "desc",
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
@@ -366,6 +385,7 @@ def admin_list_tickets(
         min_confidence=min_confidence,
         max_confidence=max_confidence,
         is_verified=is_verified,
+        inconsistencias_only=inconsistencias,
     )
     total = db.scalar(count_tickets_filtered(
         from_date=fd,
@@ -374,6 +394,7 @@ def admin_list_tickets(
         min_confidence=min_confidence,
         max_confidence=max_confidence,
         is_verified=is_verified,
+        inconsistencias_only=inconsistencias,
     ))
     if total is None:
         total = 0
@@ -386,7 +407,6 @@ def admin_list_tickets(
         "ingested_at": Ticket.ingested_at,
         "id": Ticket.id,
     }[sort_by]
-    direction = desc if sort_order == "desc" else asc
     # NULLS LAST en orden descendente de confianza/fecha
     if sort_order == "desc":
         order_expr = order_col.desc().nulls_last()
@@ -411,9 +431,18 @@ def admin_get_ticket(
             Ticket.nro_ticket,
             Ticket.litros,
             Ticket.kilometraje,
+            Ticket.km_o_horas,
             Ticket.tipo_combustible,
             Ticket.remito,
             Ticket.operador_nombre,
+            Ticket.legajo_conductor,
+            Ticket.nombre_conductor,
+            Ticket.tipo_actividad,
+            Ticket.estacion_servicio,
+            Ticket.monto,
+            Ticket.rendicion_tardia,
+            Ticket.desvio_detectado,
+            Ticket.desvio_pct,
             Ticket.fecha,
             Ticket.ingested_at,
             Ticket.url_imagen,
@@ -422,6 +451,7 @@ def admin_get_ticket(
             Ticket.verified_at,
             Ticket.vehicle_id,
             Vehicle.patente,
+            Vehicle.tipo.label("vehicle_tipo"),
         )
         .select_from(Ticket)
         .outerjoin(Vehicle, Vehicle.id == Ticket.vehicle_id)
@@ -464,6 +494,9 @@ def admin_patch_ticket(
         t.litros = None if v is None else Decimal(str(v))
     if "kilometraje" in updates:
         t.kilometraje = updates["kilometraje"]
+    if "km_o_horas" in updates:
+        v = updates["km_o_horas"]
+        t.km_o_horas = None if v is None else Decimal(str(v))
     if "remito" in updates:
         v = updates["remito"]
         if v is None:
@@ -480,6 +513,33 @@ def admin_patch_ticket(
     if "is_verified" in updates:
         t.is_verified = bool(updates["is_verified"])
         t.verified_at = datetime.now(timezone.utc) if t.is_verified else None
+    if "legajo_conductor" in updates:
+        v = updates["legajo_conductor"]
+        t.legajo_conductor = None if v is None else str(v).strip()[:32] or None
+    if "nombre_conductor" in updates:
+        v = updates["nombre_conductor"]
+        t.nombre_conductor = None if v is None else str(v).strip()[:160] or None
+    if "tipo_actividad" in updates:
+        v = updates["tipo_actividad"]
+        if v is None or str(v).strip() == "":
+            t.tipo_actividad = None
+        else:
+            act = str(v).strip()
+            if act not in ACTIVIDAD_SET:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"tipo_actividad inválido.",
+                )
+            t.tipo_actividad = act
+    if "estacion_servicio" in updates:
+        v = updates["estacion_servicio"]
+        t.estacion_servicio = None if v is None else str(v).strip()[:160] or None
+    if "monto" in updates:
+        v = updates["monto"]
+        t.monto = None if v is None else Decimal(str(v))
+
+    sync_km_o_horas_from_kilometraje(t)
+    apply_ticket_flags(db, t)
 
     try:
         db.commit()
@@ -552,6 +612,142 @@ def admin_export_monthly(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/auditoria/planilla.xlsx")
+def admin_export_planilla_oficial(
+    _: AdminPrincipal,
+    year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
+    month: Annotated[int | None, Query(ge=1, le=12)] = None,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    """Planilla oficial Circular 08/2026 (página 7)."""
+    period = resolve_period(year, month)
+    eff = effective_ticket_datetime()
+    rows = db.execute(
+        select(Ticket, Vehicle)
+        .select_from(Ticket)
+        .outerjoin(Vehicle, Vehicle.id == Ticket.vehicle_id)
+        .where(and_(eff >= period.start_utc, eff <= period.end_utc))
+        .order_by(eff.asc().nulls_last(), Ticket.id.asc()),
+    ).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Planilla oficial"
+    ws.append(list(PLANILLA_HEADERS))
+
+    for ticket, vehicle in rows:
+        inicio = None
+        if ticket.vehicle_id is not None:
+            inicio = previous_ticket_reading(
+                db,
+                vehicle_id=ticket.vehicle_id,
+                before_fecha=ticket.fecha,
+                before_id=ticket.id,
+            )
+        final = reading_value(ticket)
+        tipo_label = ""
+        if vehicle and vehicle.tipo:
+            tipo_label = VEHICLE_TIPO_LABELS.get(vehicle.tipo, vehicle.tipo)
+        fecha_str = ""
+        if ticket.fecha:
+            fecha_str = ticket.fecha.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
+        ws.append(
+            [
+                fecha_str,
+                ticket.legajo_conductor or "",
+                ticket.nombre_conductor or "",
+                ticket.tipo_actividad or "",
+                tipo_label,
+                vehicle.patente if vehicle else "",
+                inicio if inicio is not None else "",
+                final if final is not None else "",
+                float(ticket.litros) if ticket.litros is not None else "",
+                ticket.estacion_servicio or "",
+                float(ticket.monto) if ticket.monto is not None else "",
+            ],
+        )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"planilla_circular08_{period.year}_{period.month:02d}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+class VehicleUpdateBody(BaseModel):
+    tipo: str | None = None
+    consumo_esperado: float | None = None
+    unidad_consumo: str | None = None
+    umbral_desvio: float | None = Field(default=None, ge=0, le=2)
+    capacidad_tanque: float | None = None
+
+
+def _vehicle_dict(v: Vehicle) -> dict[str, Any]:
+    return {
+        "id": v.id,
+        "patente": v.patente,
+        "capacidad_tanque": v.capacidad_tanque,
+        "tipo": v.tipo,
+        "consumo_esperado": v.consumo_esperado,
+        "unidad_consumo": v.unidad_consumo or "l_100km",
+        "umbral_desvio": float(v.umbral_desvio if v.umbral_desvio is not None else 0.15),
+    }
+
+
+@router.get("/vehicles")
+def admin_list_vehicles(_: AdminPrincipal, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    rows = db.scalars(select(Vehicle).order_by(Vehicle.patente)).all()
+    return [_vehicle_dict(v) for v in rows]
+
+
+@router.patch("/vehicles/{vehicle_id}")
+def admin_patch_vehicle(
+    vehicle_id: int,
+    body: VehicleUpdateBody,
+    _: AdminPrincipal,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    v = db.get(Vehicle, vehicle_id)
+    if v is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehículo no encontrado.")
+    updates = body.model_dump(exclude_unset=True)
+    if "tipo" in updates:
+        t = updates["tipo"]
+        if t is None or str(t).strip() == "":
+            v.tipo = None
+        else:
+            t = str(t).strip().lower()
+            if t not in VEHICLE_TIPOS:
+                raise HTTPException(status_code=422, detail="tipo de vehículo inválido.")
+            v.tipo = t
+    if "consumo_esperado" in updates:
+        v.consumo_esperado = updates["consumo_esperado"]
+    if "unidad_consumo" in updates:
+        u = updates["unidad_consumo"]
+        if u is None or str(u).strip() == "":
+            v.unidad_consumo = "l_100km"
+        else:
+            u = str(u).strip().lower()
+            if u not in UNIDADES_CONSUMO:
+                raise HTTPException(status_code=422, detail="unidad_consumo inválida.")
+            v.unidad_consumo = u
+    if "umbral_desvio" in updates and updates["umbral_desvio"] is not None:
+        v.umbral_desvio = float(updates["umbral_desvio"])
+    if "capacidad_tanque" in updates:
+        v.capacidad_tanque = updates["capacidad_tanque"]
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="No se pudo guardar el vehículo.") from None
+    db.refresh(v)
+    return _vehicle_dict(v)
 
 
 # ---------------------------------------------------------------------------

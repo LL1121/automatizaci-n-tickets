@@ -29,15 +29,27 @@ export function isPermanentUploadFailure(error: unknown): boolean {
   return s >= 400;
 }
 
+export type UploadConductorMeta = {
+  legajoConductor: string;
+  nombreConductor: string;
+  tipoActividad: string;
+};
+
 export async function uploadTicketFile(
   file: File,
   vehicleId: number,
   deviceUid: string,
+  conductor?: UploadConductorMeta,
 ): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("file", file);
   form.append("vehicle_id", String(vehicleId));
   form.append("device_uid", deviceUid);
+  if (conductor) {
+    form.append("legajo_conductor", conductor.legajoConductor);
+    form.append("nombre_conductor", conductor.nombreConductor);
+    form.append("tipo_actividad", conductor.tipoActividad);
+  }
 
   const res = await fetch(`${getApiBase()}/upload`, {
     method: "POST",
@@ -46,11 +58,14 @@ export async function uploadTicketFile(
 
   const bodyText = await res.text();
   if (!res.ok) {
-    throw new UploadHttpError(
-      `Upload falló (${res.status})`,
-      res.status,
-      bodyText.slice(0, 500),
-    );
+    let detail = bodyText.slice(0, 500);
+    try {
+      const j = JSON.parse(bodyText) as { detail?: string };
+      if (typeof j.detail === "string") detail = j.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new UploadHttpError(`Upload falló (${res.status})`, res.status, detail);
   }
 
   try {

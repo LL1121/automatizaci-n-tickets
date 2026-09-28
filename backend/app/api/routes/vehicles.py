@@ -21,6 +21,7 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[dict]:
             "id": v.id,
             "patente": v.patente,
             "capacidad_tanque": v.capacidad_tanque,
+            "tipo": v.tipo,
         }
         for v in rows
     ]

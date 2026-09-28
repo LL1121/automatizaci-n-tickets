@@ -240,6 +240,7 @@ export function AdminDashboard() {
   });
 
   const rowTone = (r: AdminTicketRow, index: number) => {
+    if (r.rendicion_tardia) return "bg-red-50 text-red-900 hover:bg-red-100/80";
     const alt = index % 2 === 1 ? "bg-field-surface" : "bg-white";
     if (r.is_verified) return `${alt} hover:bg-brand-light/40`;
     return `${alt} hover:bg-brand-light/50`;

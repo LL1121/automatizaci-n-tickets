@@ -2,6 +2,7 @@
 
 import type { AdminTicketRow } from "@/lib/admin-api";
 import { patchAdminTicket, ticketImageUrl } from "@/lib/admin-api";
+import { ACTIVIDAD_OPCIONES } from "@/lib/circular";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { ModalBackdrop } from "@/components/ui/ModalBackdrop";
 import { useEffect, useState } from "react";
@@ -23,7 +24,13 @@ function toDatetimeLocalValue(iso: string | null): string {
 export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
   const [litros, setLitros] = useState(ticket.litros != null ? String(ticket.litros) : "");
   const [kilometraje, setKilometraje] = useState(ticket.kilometraje != null ? String(ticket.kilometraje) : "");
+  const [kmOHoras, setKmOHoras] = useState(ticket.km_o_horas != null ? String(ticket.km_o_horas) : "");
   const [fechaLocal, setFechaLocal] = useState(toDatetimeLocalValue(ticket.fecha));
+  const [legajo, setLegajo] = useState(ticket.legajo_conductor ?? "");
+  const [nombre, setNombre] = useState(ticket.nombre_conductor ?? "");
+  const [actividad, setActividad] = useState(ticket.tipo_actividad ?? "");
+  const [estacion, setEstacion] = useState(ticket.estacion_servicio ?? "");
+  const [monto, setMonto] = useState(ticket.monto != null ? String(ticket.monto) : "");
   const [verified, setVerified] = useState(ticket.is_verified);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -44,23 +51,28 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
     setSaving(true);
     setErr(null);
     try {
-      const body: {
-        litros?: number | null;
-        kilometraje?: number | null;
-        fecha?: string | null;
-        is_verified?: boolean;
-      } = {
+      const body: Parameters<typeof patchAdminTicket>[1] = {
         is_verified: verified,
+        legajo_conductor: legajo.trim() || null,
+        nombre_conductor: nombre.trim() || null,
+        tipo_actividad: actividad.trim() || null,
+        estacion_servicio: estacion.trim() || null,
       };
       if (litros.trim() === "") body.litros = null;
       else body.litros = Number.parseFloat(litros.replace(",", "."));
       if (kilometraje.trim() === "") body.kilometraje = null;
       else body.kilometraje = Number.parseInt(kilometraje.replace(/\D/g, ""), 10);
+      if (kmOHoras.trim() === "") body.km_o_horas = null;
+      else body.km_o_horas = Number.parseFloat(kmOHoras.replace(",", "."));
+      if (monto.trim() === "") body.monto = null;
+      else body.monto = Number.parseFloat(monto.replace(",", "."));
       if (fechaLocal.trim() === "") body.fecha = null;
       else body.fecha = new Date(fechaLocal).toISOString();
 
       if (body.litros != null && Number.isNaN(body.litros)) throw new Error("Litros inválidos");
       if (body.kilometraje != null && Number.isNaN(body.kilometraje)) throw new Error("Kilometraje inválido");
+      if (body.km_o_horas != null && Number.isNaN(body.km_o_horas)) throw new Error("Km/Hs inválido");
+      if (body.monto != null && Number.isNaN(body.monto)) throw new Error("Monto inválido");
 
       const updated = await patchAdminTicket(ticket.id, body);
       onSaved(updated as AdminTicketRow);
@@ -96,6 +108,22 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
               </button>
             </div>
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+              {(ticket.rendicion_tardia || ticket.desvio_detectado) && (
+                <div className="flex flex-wrap gap-2">
+                  {ticket.rendicion_tardia ? (
+                    <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white">
+                      Rendición tardía (&gt; 48 h hábiles)
+                    </span>
+                  ) : null}
+                  {ticket.desvio_detectado ? (
+                    <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-white">
+                      Desvío de consumo
+                      {ticket.desvio_pct != null ? ` (${(ticket.desvio_pct * 100).toFixed(0)}%)` : ""}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <button
                   type="button"
@@ -127,7 +155,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                     <p className="font-mono text-field-text">{ticket.patente ?? "—"}</p>
                   </div>
                   <div>
-                    <span className="text-field-muted">Operario</span>
+                    <span className="text-field-muted">Operario (dispositivo)</span>
                     <p className="text-field-text">{ticket.operador_nombre ?? "—"}</p>
                   </div>
                   <div>
@@ -143,6 +171,45 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
 
               <div className="grid gap-4 border-t border-field-border pt-4 md:grid-cols-2">
                 <label className="block text-sm">
+                  <span className="text-field-muted">Legajo conductor</span>
+                  <input
+                    value={legajo}
+                    onChange={(e) => setLegajo(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-field-muted">Apellido y nombre</span>
+                  <input
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  />
+                </label>
+                <label className="block text-sm md:col-span-2">
+                  <span className="text-field-muted">Tipo de actividad</span>
+                  <select
+                    value={actividad}
+                    onChange={(e) => setActividad(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  >
+                    <option value="">—</option>
+                    {ACTIVIDAD_OPCIONES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm md:col-span-2">
+                  <span className="text-field-muted">Estación de servicio</span>
+                  <input
+                    value={estacion}
+                    onChange={(e) => setEstacion(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
                   <span className="text-field-muted">Litros</span>
                   <input
                     type="number"
@@ -153,12 +220,32 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-field-muted">Kilometraje (Km)</span>
+                  <span className="text-field-muted">Monto ($)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-field-muted">Km (IA)</span>
                   <input
                     type="number"
                     step="1"
                     value={kilometraje}
                     onChange={(e) => setKilometraje(e.target.value)}
+                    className="input-field !min-h-0 mt-1 py-2"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-field-muted">Km/Hs oficial</span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={kmOHoras}
+                    onChange={(e) => setKmOHoras(e.target.value)}
                     className="input-field !min-h-0 mt-1 py-2"
                   />
                 </label>
@@ -204,14 +291,14 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
         </div>,
         document.body,
       )}
-      <ImageLightbox
-        open={imageZoom}
-        src={ticketImageUrl(ticket.id)}
-        alt="Ticket ampliado"
-        title={`Ticket #${ticket.id}`}
-        onClose={() => setImageZoom(false)}
-        zIndex={70}
-      />
+      {imageZoom ? (
+        <ImageLightbox
+          open={imageZoom}
+          src={ticketImageUrl(ticket.id)}
+          alt={`Ticket #${ticket.id}`}
+          onClose={() => setImageZoom(false)}
+        />
+      ) : null}
     </>
   );
 }

@@ -1,0 +1,12 @@
+# Solo para labs sin Caddy central (compose.caddy.yml).
+# En Lyntrix usá el archivo Caddyfile (sin .standalone) en el proxy principal.
+
+tickets.irrigacionmalargue.net {
+	encode gzip zstd
+	reverse_proxy frontend:3000
+}
+
+api-tickets.irrigacionmalargue.net {
+	encode gzip zstd
+	reverse_proxy api:8000
+}

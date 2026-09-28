@@ -16,8 +16,13 @@ class Settings(BaseSettings):
     database_url: PostgresDsn | None = Field(
         default=None,
         alias="DATABASE_URL",
-        description="URL completa. Si falta, se arma desde POSTGRES_* con encoding correcto.",
+        description="URL completa. En prod Lyntrix apunta a postgres_core.",
     )
+    # Preferidos en prod (Lyntrix). Si faltan, se usan POSTGRES_*.
+    db_user: str | None = Field(default=None, alias="DB_USER")
+    db_password: str | None = Field(default=None, alias="DB_PASSWORD")
+    db_name: str | None = Field(default=None, alias="DB_NAME")
+
     postgres_user: str = Field(default="fuelops", alias="POSTGRES_USER")
     postgres_password: str = Field(default="fuelops_dev", alias="POSTGRES_PASSWORD")
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
@@ -70,17 +75,27 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def resolve_database_url(self) -> "Settings":
-        # En Docker: misma fuente que el healthcheck (POSTGRES_*), no DATABASE_URL suelta.
-        docker_db = self.postgres_host not in ("localhost", "127.0.0.1", "::1")
-        if docker_db or self.database_url is None:
-            built = build_database_url(
-                user=self.postgres_user,
-                password=self.postgres_password,
-                host=self.postgres_host,
-                port=self.postgres_port,
-                database=self.postgres_db,
-            )
-            object.__setattr__(self, "database_url", built)
+        user = (self.db_user or self.postgres_user).strip()
+        password = self.db_password if self.db_password is not None else self.postgres_password
+        database = (self.db_name or self.postgres_db).strip()
+        host = self.postgres_host.strip()
+        port = self.postgres_port
+
+        object.__setattr__(self, "postgres_user", user)
+        object.__setattr__(self, "postgres_password", password)
+        object.__setattr__(self, "postgres_db", database)
+
+        # Si DATABASE_URL apunta a postgres_core (u otro host remoto), respetarla
+        # salvo que POSTGRES_HOST esté forzado por compose (siempre reconstruimos
+        # desde piezas con encoding correcto — evita passwords rotas por $?@).
+        built = build_database_url(
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            database=database,
+        )
+        object.__setattr__(self, "database_url", built)
         return self
 
     @property

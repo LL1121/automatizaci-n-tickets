@@ -25,6 +25,8 @@ Analizá UNA imagen del ticket térmico (alto y angosto) y devolvé ÚNICAMENTE 
 - patente: string, valor junto a "Patente:" (solo la patente, sin la etiqueta)
 - kilometraje: entero, odómetro junto a "Km:" o "Km." (solo dígitos)
 - litros: número decimal, valor bajo la columna "CANT"
+- monto: número decimal o null, total en pesos (TOTAL, IMPORTE, $) si aparece
+- estacion_servicio: string o null, nombre de la estación / comercio (cabecera del ticket)
 - remito: string o null, junto a "REMITO" si aparece
 - fecha: string ISO 8601 con zona -03:00 (preferí "Fecha Impresion" del pie)
 - confidence_score: número entre 0 y 1
@@ -36,12 +38,13 @@ OCR en tickets térmicos — leé carácter por carácter; evitá confusiones:
 
 Reglas:
 - cuit_proveedor, nro_ticket y patente son OBLIGATORIOS
-- No incluyas monto en pesos ni claves extra
-- kilometraje: integer o null; litros: number o null; remito: null si no hay REMITO legible"""
+- No incluyas claves extra fuera de la lista
+- kilometraje: integer o null; litros/monto: number o null; remito/estacion_servicio: null si no legible"""
 
 USER_PROMPT = (
     "Extraé los datos del ticket YPF EN RUTA. "
-    "Buscá Patente:, Km:, columna CANT (litros), REMITO (si existe) y Fecha Impresion."
+    "Buscá Patente:, Km:, columna CANT (litros), TOTAL/monto, nombre de estación, "
+    "REMITO (si existe) y Fecha Impresion."
 )
 
 
@@ -53,6 +56,8 @@ class ExtractedTicketData(BaseModel):
     patente: str = Field(..., min_length=1, max_length=32)
     kilometraje: int | None = None
     litros: float | None = None
+    monto: float | None = None
+    estacion_servicio: str | None = None
     remito: str | None = None
     fecha: str | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -81,13 +86,34 @@ class ExtractedTicketData(BaseModel):
             return None
         return int(digits)
 
-    @field_validator("remito", mode="before")
+    @field_validator("remito", "estacion_servicio", mode="before")
     @classmethod
-    def parse_remito(cls, v: Any) -> str | None:
+    def parse_optional_str(cls, v: Any) -> str | None:
         if v is None or v == "":
             return None
         s = str(v).strip()
-        return s if s else None
+        return s[:160] if s else None
+
+    @field_validator("monto", "litros", mode="before")
+    @classmethod
+    def parse_optional_float(cls, v: Any) -> float | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, (int, float)):
+            f = float(v)
+            return None if f != f else f  # NaN
+        text = str(v).strip().replace("$", "").replace(" ", "")
+        if "," in text and "." in text:
+            text = text.replace(".", "").replace(",", ".")
+        elif "," in text:
+            text = text.replace(",", ".")
+        digits = re.sub(r"[^\d.]", "", text)
+        if not digits or digits == ".":
+            return None
+        try:
+            return float(digits)
+        except ValueError:
+            return None
 
 
 class AIEngineError(RuntimeError):

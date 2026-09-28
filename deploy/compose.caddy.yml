@@ -1,7 +1,9 @@
-# Añadí Caddy con TLS automático. Uso desde la raíz del repo:
-#   docker compose -f docker-compose.yml -f deploy/compose.caddy.yml up -d --build
+# Overlay LEGACY: Caddy embebido con ports 80/443.
+# En Lyntrix NO uses esto — el proxy central en proxy_net usa deploy/Caddyfile.
+# Preferí: docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
 #
-# Requisitos: DNS de ambos subdominios apuntando a este servidor; puertos 80/443 libres.
+# Solo para labs aislados sin Caddy compartido:
+#   docker compose -f docker-compose.yml -f deploy/compose.caddy.yml up -d --build
 
 services:
   caddy:
@@ -11,12 +13,14 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.standalone:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - api
       - frontend
+    networks:
+      - lyntrix_network
 
 volumes:
   caddy_data:
