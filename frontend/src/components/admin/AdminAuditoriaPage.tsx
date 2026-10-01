@@ -209,6 +209,7 @@ export function AdminAuditoriaPage() {
               <tr>
                 <th className="px-4 py-3">Patente</th>
                 <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Modelo</th>
                 <th className="px-4 py-3">Consumo esperado</th>
                 <th className="px-4 py-3">Unidad</th>
                 <th className="px-4 py-3">Umbral</th>
@@ -257,6 +258,7 @@ function VehicleFleetRow({
   onSave: (patch: Parameters<typeof patchAdminVehicle>[1]) => void;
 }) {
   const [tipo, setTipo] = useState(vehicle.tipo ?? "");
+  const [modelo, setModelo] = useState(vehicle.modelo ?? "");
   const [consumo, setConsumo] = useState(
     vehicle.consumo_esperado != null ? String(vehicle.consumo_esperado) : "",
   );
@@ -265,6 +267,7 @@ function VehicleFleetRow({
 
   useEffect(() => {
     setTipo(vehicle.tipo ?? "");
+    setModelo(vehicle.modelo ?? "");
     setConsumo(vehicle.consumo_esperado != null ? String(vehicle.consumo_esperado) : "");
     setUnidad(vehicle.unidad_consumo || "l_100km");
     setUmbral(String(vehicle.umbral_desvio ?? 0.15));
@@ -286,6 +289,14 @@ function VehicleFleetRow({
             </option>
           ))}
         </select>
+      </td>
+      <td className="px-4 py-2">
+        <input
+          className="input-field !min-h-0 w-36 py-1.5"
+          value={modelo}
+          placeholder="CAPTUR"
+          onChange={(e) => setModelo(e.target.value)}
+        />
       </td>
       <td className="px-4 py-2">
         <input
@@ -328,6 +339,7 @@ function VehicleFleetRow({
           onClick={() =>
             onSave({
               tipo: tipo || null,
+              modelo: modelo.trim() || null,
               consumo_esperado: consumo.trim() === "" ? null : Number(consumo.replace(",", ".")),
               unidad_consumo: unidad,
               umbral_desvio: Number(umbral.replace(",", ".")),
