@@ -20,16 +20,34 @@ VEHICLE_TIPO_LABELS: dict[str, str] = {
     "maquinaria": "Maquinaria",
 }
 
-PLANILLA_HEADERS: tuple[str, ...] = (
-    "Fecha",
-    "Legajo",
-    "Apellido y Nombre",
-    "Actividad",
-    "Tipo",
-    "Patente",
-    "Km/Hs inicio",
-    "Km/Hs final",
-    "Carga Lts",
-    "Estación",
-    "Monto",
+MESES_MAYUSCULA: tuple[str, ...] = (
+    "",
+    "ENERO",
+    "FEBRERO",
+    "MARZO",
+    "ABRIL",
+    "MAYO",
+    "JUNIO",
+    "JULIO",
+    "AGOSTO",
+    "SEPTIEMBRE",
+    "OCTUBRE",
+    "NOVIEMBRE",
+    "DICIEMBRE",
 )
+
+PLANILLA_HEADERS: tuple[str, ...] = (
+    "FECHA",
+    "LEGAJO",
+    "APELLIDO Y NOMBRE",
+    "TIPO DE ACTIVIDAD",
+    "TIPO",
+    "PATENTE",
+    "KM/ RECORRIDO",
+    "CARGA LTS",
+    "TIPO DE COMBUSTIBLE",
+    "ESTACION DE SERVICIO",
+    "OBSERVACIONES",
+)
+
+PLANILLA_WIDTHS: tuple[float, ...] = (13, 13, 23, 23, 16, 13, 14, 13, 18, 28, 20)

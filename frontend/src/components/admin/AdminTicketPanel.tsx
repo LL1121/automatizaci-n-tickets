@@ -31,6 +31,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
   const [actividad, setActividad] = useState(ticket.tipo_actividad ?? "");
   const [estacion, setEstacion] = useState(ticket.estacion_servicio ?? "");
   const [monto, setMonto] = useState(ticket.monto != null ? String(ticket.monto) : "");
+  const [tipoCombustible, setTipoCombustible] = useState(ticket.tipo_combustible ?? "");
   const [verified, setVerified] = useState(ticket.is_verified);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
         nombre_conductor: nombre.trim() || null,
         tipo_actividad: actividad.trim() || null,
         estacion_servicio: estacion.trim() || null,
+        tipo_combustible: tipoCombustible.trim() || null,
       };
       if (litros.trim() === "") body.litros = null;
       else body.litros = Number.parseFloat(litros.replace(",", "."));
@@ -158,10 +160,15 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                     <span className="text-field-muted">Operario (dispositivo)</span>
                     <p className="text-field-text">{ticket.operador_nombre ?? "—"}</p>
                   </div>
-                  <div>
+                  <label className="block">
                     <span className="text-field-muted">Combustible</span>
-                    <p className="text-field-text">{ticket.tipo_combustible ?? "INFINIA DIESEL"}</p>
-                  </div>
+                    <input
+                      value={tipoCombustible}
+                      onChange={(e) => setTipoCombustible(e.target.value)}
+                      className="input-field !min-h-0 mt-1 py-2"
+                      placeholder="INFINIA DIESEL"
+                    />
+                  </label>
                   <div>
                     <span className="text-field-muted">Remito</span>
                     <p className="font-mono text-field-text">{ticket.remito ?? "No encontrado"}</p>

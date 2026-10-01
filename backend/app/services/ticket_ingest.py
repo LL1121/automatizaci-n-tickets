@@ -55,6 +55,11 @@ def _normalize_nro_ticket(raw: str) -> str:
     return re.sub(r"\s+", "", raw).strip()[:64]
 
 
+def _normalize_tipo_combustible(raw: str | None) -> str:
+    cleaned = " ".join(str(raw or "").split()).upper()
+    return cleaned[:64] if cleaned else TIPO_COMBUSTIBLE_DEFAULT
+
+
 def _normalize_remito(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -221,7 +226,7 @@ def ingest_ticket_image(
         nro_ticket=nro,
         litros=Decimal(str(extracted.litros)) if extracted.litros is not None else None,
         kilometraje=extracted.kilometraje,
-        tipo_combustible=TIPO_COMBUSTIBLE_DEFAULT,
+        tipo_combustible=_normalize_tipo_combustible(extracted.tipo_combustible),
         remito=_normalize_remito(extracted.remito),
         fecha=fecha_ticket,
         url_imagen=str(dest.resolve()),

@@ -266,6 +266,7 @@ export async function patchAdminTicket(
     tipo_actividad: string | null;
     estacion_servicio: string | null;
     monto: number | null;
+    tipo_combustible: string | null;
   }>,
 ): Promise<AdminTicketRow> {
   const res = await adminFetch(`${getApiBase()}/admin/tickets/${id}`, {
@@ -285,6 +286,7 @@ export type AdminVehicleRow = {
   patente: string;
   capacidad_tanque: number | null;
   tipo: string | null;
+  modelo: string | null;
   consumo_esperado: number | null;
   unidad_consumo: string;
   umbral_desvio: number;
@@ -300,6 +302,7 @@ export async function patchAdminVehicle(
   id: number,
   body: Partial<{
     tipo: string | null;
+    modelo: string | null;
     consumo_esperado: number | null;
     unidad_consumo: string | null;
     umbral_desvio: number | null;

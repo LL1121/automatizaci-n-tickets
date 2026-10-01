@@ -67,6 +67,7 @@ def apply_schema_migrations(engine: Engine) -> None:
         if "vehicles" in table_names:
             vcols = {c["name"] for c in insp.get_columns("vehicles")}
             _add_column_if_missing(conn, "vehicles", vcols, "tipo", "tipo VARCHAR(32)")
+            _add_column_if_missing(conn, "vehicles", vcols, "modelo", "modelo VARCHAR(64)")
             _add_column_if_missing(conn, "vehicles", vcols, "consumo_esperado", "consumo_esperado FLOAT")
             _add_column_if_missing(
                 conn,

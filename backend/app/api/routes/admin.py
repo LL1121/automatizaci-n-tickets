@@ -9,16 +9,20 @@ from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
-from app.core.circular import ACTIVIDAD_SET, PLANILLA_HEADERS, VEHICLE_TIPO_LABELS
+from app.core.circular import ACTIVIDAD_SET, MESES_MAYUSCULA, PLANILLA_HEADERS, PLANILLA_WIDTHS
 from app.core.config import get_settings
 from app.core.security import AuthConfigError, create_admin_token, verify_password
 from app.db.session import get_db
@@ -36,7 +40,8 @@ from app.services.admin_stats import (
     tickets_for_export,
     tickets_query_filtered,
 )
-from app.services.consumption import apply_ticket_flags, previous_ticket_reading, reading_value, sync_km_o_horas_from_kilometraje
+from app.services.consumption import apply_ticket_flags, reading_value, sync_km_o_horas_from_kilometraje
+from app.services.plate import format_patente_display
 from app.services.image_segmentation import (
     decode_image_bytes,
     encode_image_jpeg,
@@ -276,6 +281,7 @@ class TicketUpdateBody(BaseModel):
     tipo_actividad: str | None = None
     estacion_servicio: str | None = None
     monto: float | None = None
+    tipo_combustible: str | None = None
 
 
 def _ticket_row_dict(r: dict) -> dict[str, Any]:
@@ -537,6 +543,10 @@ def admin_patch_ticket(
     if "monto" in updates:
         v = updates["monto"]
         t.monto = None if v is None else Decimal(str(v))
+    if "tipo_combustible" in updates:
+        v = updates["tipo_combustible"]
+        cleaned = " ".join(str(v or "").split()).upper()
+        t.tipo_combustible = (cleaned[:64] if cleaned else "INFINIA DIESEL")
 
     sync_km_o_horas_from_kilometraje(t)
     apply_ticket_flags(db, t)
@@ -614,6 +624,103 @@ def admin_export_monthly(
     )
 
 
+_AR_TZ = ZoneInfo("America/Argentina/Mendoza")
+_THIN = Border(
+    left=Side(style="thin"),
+    right=Side(style="thin"),
+    top=Side(style="thin"),
+    bottom=Side(style="thin"),
+)
+
+
+def _fecha_planilla(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_AR_TZ).strftime("%d/%m/%Y")
+
+
+def _km_planilla(ticket: Ticket) -> int | float | str:
+    reading = reading_value(ticket)
+    if reading is None:
+        return ""
+    if reading == int(reading):
+        return int(reading)
+    return reading
+
+
+def _observaciones_planilla(ticket: Ticket) -> str:
+    notes: list[str] = []
+    if ticket.rendicion_tardia:
+        notes.append("Rendición tardía (>48hs hábiles)")
+    if ticket.desvio_detectado:
+        notes.append("Desvío de consumo detectado")
+    return " / ".join(notes)
+
+
+def _style_planilla_header(ws: Worksheet, last_col: int) -> None:
+    title_font = Font(name="Calibri", size=16, bold=True)
+    group_font = Font(name="Calibri", size=11, bold=True)
+    col_font = Font(name="Calibri", size=11, bold=True)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    for col in range(1, last_col + 1):
+        cell = ws.cell(1, col)
+        cell.font = title_font
+        cell.alignment = center
+        cell.border = _THIN
+        for row, font, align in ((2, group_font, center), (3, col_font, center)):
+            c = ws.cell(row, col)
+            c.font = font
+            c.alignment = left if row == 2 and col == 4 else align
+            c.border = _THIN
+
+    ws.row_dimensions[1].height = 24
+    ws.row_dimensions[2].height = 18
+    ws.freeze_panes = "A4"
+
+
+def _write_planilla(ws: Worksheet, *, year: int, month: int, rows: list[tuple[Ticket, Vehicle | None]]) -> None:
+    last_col = len(PLANILLA_HEADERS)
+    mes = MESES_MAYUSCULA[month]
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_col)
+    ws["A1"] = f"CONTROL DE COMBUSTIBLE  {mes} {year}"
+    ws.merge_cells("A2:C2")
+    ws["A2"] = "RESPONSABLE"
+    ws["D2"] = "ACTIVIDAD"
+    ws.merge_cells("E2:G2")
+    ws["E2"] = "VEHICULO"
+    ws.merge_cells("H2:K2")
+    ws["H2"] = "COMBUSTIBLE"
+    for idx, header in enumerate(PLANILLA_HEADERS, start=1):
+        ws.cell(3, idx, header)
+        ws.column_dimensions[get_column_letter(idx)].width = PLANILLA_WIDTHS[idx - 1]
+
+    data_font = Font(name="Calibri", size=11)
+    for offset, (ticket, vehicle) in enumerate(rows):
+        patente = format_patente_display(vehicle.patente) if vehicle else ""
+        values: list[Any] = [
+            _fecha_planilla(ticket.fecha),
+            ticket.legajo_conductor or "",
+            ticket.nombre_conductor or "",
+            ticket.tipo_actividad or "",
+            (vehicle.modelo or "") if vehicle else "",
+            patente,
+            _km_planilla(ticket),
+            float(ticket.litros) if ticket.litros is not None else "",
+            ticket.tipo_combustible or "",
+            ticket.estacion_servicio or "",
+            _observaciones_planilla(ticket),
+        ]
+        row_idx = 4 + offset
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row_idx, col, value)
+            cell.font = data_font
+            cell.border = _THIN
+    _style_planilla_header(ws, last_col)
+
+
 @router.get("/auditoria/planilla.xlsx")
 def admin_export_planilla_oficial(
     _: AdminPrincipal,
@@ -621,7 +728,7 @@ def admin_export_planilla_oficial(
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    """Planilla oficial Circular 08/2026 (página 7)."""
+    """Planilla oficial de control de combustible (septiembre 2026)."""
     period = resolve_period(year, month)
     eff = effective_ticket_datetime()
     rows = db.execute(
@@ -635,44 +742,12 @@ def admin_export_planilla_oficial(
     wb = Workbook()
     ws = wb.active
     ws.title = "Planilla oficial"
-    ws.append(list(PLANILLA_HEADERS))
-
-    for ticket, vehicle in rows:
-        inicio = None
-        if ticket.vehicle_id is not None:
-            inicio = previous_ticket_reading(
-                db,
-                vehicle_id=ticket.vehicle_id,
-                before_fecha=ticket.fecha,
-                before_id=ticket.id,
-            )
-        final = reading_value(ticket)
-        tipo_label = ""
-        if vehicle and vehicle.tipo:
-            tipo_label = VEHICLE_TIPO_LABELS.get(vehicle.tipo, vehicle.tipo)
-        fecha_str = ""
-        if ticket.fecha:
-            fecha_str = ticket.fecha.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
-        ws.append(
-            [
-                fecha_str,
-                ticket.legajo_conductor or "",
-                ticket.nombre_conductor or "",
-                ticket.tipo_actividad or "",
-                tipo_label,
-                vehicle.patente if vehicle else "",
-                inicio if inicio is not None else "",
-                final if final is not None else "",
-                float(ticket.litros) if ticket.litros is not None else "",
-                ticket.estacion_servicio or "",
-                float(ticket.monto) if ticket.monto is not None else "",
-            ],
-        )
+    _write_planilla(ws, year=period.year, month=period.month, rows=[(t, v) for t, v in rows])
 
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
-    filename = f"planilla_circular08_{period.year}_{period.month:02d}.xlsx"
+    filename = f"planilla_combustible_{period.year}_{period.month:02d}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -682,6 +757,7 @@ def admin_export_planilla_oficial(
 
 class VehicleUpdateBody(BaseModel):
     tipo: str | None = None
+    modelo: str | None = None
     consumo_esperado: float | None = None
     unidad_consumo: str | None = None
     umbral_desvio: float | None = Field(default=None, ge=0, le=2)
@@ -694,6 +770,7 @@ def _vehicle_dict(v: Vehicle) -> dict[str, Any]:
         "patente": v.patente,
         "capacidad_tanque": v.capacidad_tanque,
         "tipo": v.tipo,
+        "modelo": v.modelo,
         "consumo_esperado": v.consumo_esperado,
         "unidad_consumo": v.unidad_consumo or "l_100km",
         "umbral_desvio": float(v.umbral_desvio if v.umbral_desvio is not None else 0.15),
@@ -726,6 +803,9 @@ def admin_patch_vehicle(
             if t not in VEHICLE_TIPOS:
                 raise HTTPException(status_code=422, detail="tipo de vehículo inválido.")
             v.tipo = t
+    if "modelo" in updates:
+        m = updates["modelo"]
+        v.modelo = None if m is None else str(m).strip()[:64] or None
     if "consumo_esperado" in updates:
         v.consumo_esperado = updates["consumo_esperado"]
     if "unidad_consumo" in updates:
