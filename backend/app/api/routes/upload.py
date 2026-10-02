@@ -9,11 +9,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.circular import ACTIVIDAD_SET
 from app.db.session import get_db
 from app.models.field_device import FieldDevice
 from app.models.vehicle import Vehicle
-from app.services.ticket_ingest import ingest_ticket_image
+from app.services.ticket_ingest import VEHICLE_NOT_FOUND, ingest_ticket_image
 
 router = APIRouter(tags=["ingest"])
 
@@ -63,16 +62,11 @@ async def upload_ticket(
         if vehicle is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="vehicle_id no corresponde a un vehículo existente.",
+                detail=VEHICLE_NOT_FOUND,
             )
         vehicle_patente = vehicle.patente
 
-    actividad = (tipo_actividad or "").strip()
-    if actividad and actividad not in ACTIVIDAD_SET:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"tipo_actividad inválido. Opciones: {', '.join(sorted(ACTIVIDAD_SET))}",
-        )
+    actividad = " ".join((tipo_actividad or "").split())[:160]
     if not (legajo_conductor or "").strip() or not (nombre_conductor or "").strip() or not actividad:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

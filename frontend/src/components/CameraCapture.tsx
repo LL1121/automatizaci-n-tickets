@@ -2,7 +2,12 @@
 
 import { guideCropOnVideo } from "@/lib/camera-crop";
 import { persistAndTryUpload } from "@/lib/sync-queue";
-import { UploadHttpError, type UploadConductorMeta } from "@/lib/upload-ticket";
+import {
+  humanizeUploadDetail,
+  isMissingVehicleDetail,
+  UploadHttpError,
+  type UploadConductorMeta,
+} from "@/lib/upload-ticket";
 import gsap from "gsap";
 import { motion } from "framer-motion";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
@@ -19,7 +24,7 @@ type Props = {
     r:
       | { mode: "synced" }
       | { mode: "queued"; navigatorOffline: boolean }
-      | { mode: "error"; message: string },
+      | { mode: "error"; message: string; missingVehicle?: boolean },
   ) => void;
 };
 
@@ -189,12 +194,19 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
         } catch {
           /* body plano */
         }
+        const raw = detail || e.message;
         onResult({
           mode: "error",
-          message: detail || e.message,
+          message: humanizeUploadDetail(raw, patente),
+          missingVehicle: isMissingVehicleDetail(raw),
         });
       } else {
-        onResult({ mode: "error", message: e instanceof Error ? e.message : String(e) });
+        const raw = e instanceof Error ? e.message : String(e);
+        onResult({
+          mode: "error",
+          message: humanizeUploadDetail(raw, patente),
+          missingVehicle: isMissingVehicleDetail(raw),
+        });
       }
     } finally {
       setBusy(false);

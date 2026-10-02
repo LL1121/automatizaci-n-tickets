@@ -17,6 +17,8 @@ def format_patente_display(raw: str | None) -> str:
     n = normalize_patente(raw)
     if re.fullmatch(r"[A-Z]{2}\d{3}[A-Z]{2}", n):
         return f"{n[:2]}-{n[2:5]}-{n[5:]}"
+    if re.fullmatch(r"[A-Z]{3}\d{3}", n):
+        return f"{n[:3]} {n[3:]}"
     return n
 
 

@@ -1,19 +1,7 @@
-/** Catálogo Circular 08/2026 — tipo de actividad oficial. */
-export const ACTIVIDAD_OPCIONES = [
-  "Traslado oficial",
-  "Mantenimiento de red",
-  "Emergencia hídrica",
-  "Obra",
-  "Control / inspección",
-  "Otro",
-] as const;
-
-export type TipoActividad = (typeof ACTIVIDAD_OPCIONES)[number];
-
 export type ConductorForm = {
   legajo: string;
   nombre: string;
-  actividad: TipoActividad | "";
+  actividad: string;
 };
 
 export const VEHICLE_TIPO_OPTIONS = [
