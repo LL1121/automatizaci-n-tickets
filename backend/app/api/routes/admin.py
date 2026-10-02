@@ -22,7 +22,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
-from app.core.circular import ACTIVIDAD_SET, MESES_MAYUSCULA, PLANILLA_HEADERS, PLANILLA_WIDTHS
+from app.core.circular import MESES_MAYUSCULA, PLANILLA_HEADERS, PLANILLA_WIDTHS
 from app.core.config import get_settings
 from app.core.security import AuthConfigError, create_admin_token, verify_password
 from app.db.session import get_db
@@ -530,13 +530,7 @@ def admin_patch_ticket(
         if v is None or str(v).strip() == "":
             t.tipo_actividad = None
         else:
-            act = str(v).strip()
-            if act not in ACTIVIDAD_SET:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"tipo_actividad inválido.",
-                )
-            t.tipo_actividad = act
+            t.tipo_actividad = " ".join(str(v).split())[:160]
     if "estacion_servicio" in updates:
         v = updates["estacion_servicio"]
         t.estacion_servicio = None if v is None else str(v).strip()[:160] or None
@@ -767,7 +761,7 @@ class VehicleUpdateBody(BaseModel):
 def _vehicle_dict(v: Vehicle) -> dict[str, Any]:
     return {
         "id": v.id,
-        "patente": v.patente,
+        "patente": format_patente_display(v.patente),
         "capacidad_tanque": v.capacidad_tanque,
         "tipo": v.tipo,
         "modelo": v.modelo,

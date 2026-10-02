@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.vehicle import Vehicle
+from app.services.plate import normalize_patente
 
 logger = logging.getLogger(__name__)
 
@@ -18,27 +19,38 @@ _DEMO_FLEET: tuple[tuple[str, float | None], ...] = (
     ("AA000BB", 70.0),
 )
 
-# Patentes de la flota — editar acá y correr: python -m app.cli.ensure_fleet
+# Patentes reales. Se guardan normalizadas (sin espacios) para cruzar con el ticket.
+# Se insertan al arrancar el API. Capacidad de tanque en litros, o None si no se conoce.
 FLEET_PATENTES: tuple[tuple[str, float | None], ...] = (
-    ("AB123CD", 80.0),
-    ("XY987ZZ", 55.0),
-    ("AA000BB", 70.0),
-    ("AC 979 ML", 70.0),
+    ("AC979ML", 70.0),
+    ("EVF245", None),
 )
 
 
 def ensure_fleet_vehicles(db: Session) -> list[str]:
     """Inserta patentes de la flota que aún no estén en la base. Devuelve las agregadas."""
+    existing = {
+        normalize_patente(v.patente): v
+        for v in db.scalars(select(Vehicle)).all()
+    }
     added: list[str] = []
-    for patente, cap in FLEET_PATENTES:
-        exists = db.scalar(select(Vehicle.id).where(Vehicle.patente == patente))
-        if exists is not None:
+    changed = False
+    for raw, cap in FLEET_PATENTES:
+        patente = normalize_patente(raw)
+        if not patente:
+            continue
+        current = existing.get(patente)
+        if current is not None:
+            if current.patente != patente:
+                current.patente = patente
+                changed = True
             continue
         db.add(Vehicle(patente=patente, capacidad_tanque=cap))
         added.append(patente)
-    if added:
+    if added or changed:
         db.commit()
-        logger.info("Flota: agregadas %d patente(s) nueva(s): %s", len(added), ", ".join(added))
+        if added:
+            logger.info("Flota: agregadas %d patente(s) nueva(s): %s", len(added), ", ".join(added))
     return added
 
 

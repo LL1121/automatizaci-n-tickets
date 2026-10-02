@@ -1,6 +1,7 @@
 import { getOrCreateDeviceUid } from "@/lib/device-id";
 import {
   uploadTicketFile,
+  humanizeUploadDetail,
   isPermanentUploadFailure,
   isQuotaBlockedError,
   UploadHttpError,
@@ -32,14 +33,14 @@ export type FlushOptions = {
   maxItems?: number;
 };
 
-function friendlyError(e: unknown): string {
+function friendlyError(e: unknown, patente?: string | null): string {
   if (e instanceof UploadHttpError) {
     if (isQuotaBlockedError(e)) {
       return "El servicio de lectura no está disponible ahora. Probá de nuevo más tarde desde Pendientes.";
     }
-    return `${e.status}: ${e.body.slice(0, 120) || e.message}`;
+    return humanizeUploadDetail(e.body || e.message, patente);
   }
-  return String(e);
+  return humanizeUploadDetail(String(e), patente);
 }
 
 function statusAfterError(e: unknown, manual: boolean): PendingTicketStatus {
@@ -104,8 +105,8 @@ export async function flushPendingTickets(options: FlushOptions = {}): Promise<F
       uploaded += 1;
     } catch (e) {
       failed += 1;
-      const msg = friendlyError(e);
-      errors.push(`${row.id}: ${msg}`);
+      const msg = friendlyError(e, row.patente);
+      errors.push(msg);
       const nextStatus = statusAfterError(e, manual);
       await updatePendingTicket(row.id, {
         status: nextStatus,
@@ -159,7 +160,7 @@ export async function persistAndTryUpload(
       : "pending";
     await updatePendingTicket(id, {
       status: nextStatus,
-      lastError: friendlyError(e),
+      lastError: friendlyError(e, patente),
       nextRetryAt:
         nextStatus === "pending" ? Date.now() + RETRY_BACKOFF_MS : undefined,
     });

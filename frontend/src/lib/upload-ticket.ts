@@ -12,6 +12,24 @@ export class UploadHttpError extends Error {
   }
 }
 
+const MISSING_VEHICLE =
+  /veh[ií]culo_id|vehicle_id|no corresponde a un veh[ií]culo|no existe la columna|column ["']?veh|no encontramos la patente/i;
+
+export function isMissingVehicleDetail(detail: string): boolean {
+  return MISSING_VEHICLE.test(detail);
+}
+
+/** Traduce el error técnico de vehículo a un aviso de patente para el conductor. */
+export function humanizeUploadDetail(detail: string, patente?: string | null): string {
+  const text = detail.trim();
+  if (!isMissingVehicleDetail(text)) return text;
+  const plate = patente?.trim();
+  if (plate) {
+    return `No encontramos la patente ${plate}. Volvé a elegir el vehículo en la lista.`;
+  }
+  return "No encontramos la patente de ese vehículo. Volvé a elegirla en la lista.";
+}
+
 export function isQuotaBlockedError(error: unknown): boolean {
   return error instanceof UploadHttpError && QUOTA_BLOCKED_STATUSES.has(error.status);
 }

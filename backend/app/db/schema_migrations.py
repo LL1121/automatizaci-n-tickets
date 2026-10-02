@@ -43,9 +43,30 @@ def apply_schema_migrations(engine: Engine) -> None:
             _add_column_if_missing(conn, "tickets", col_names, "operador_nombre", "operador_nombre VARCHAR(120)")
             _add_column_if_missing(conn, "tickets", col_names, "field_device_id", "field_device_id INTEGER")
 
+            # create_all no altera tablas viejas. Si el dump tenía vehiculo_id, lo renombramos.
+            if "vehiculo_id" in col_names and "vehicle_id" not in col_names:
+                conn.execute(text("ALTER TABLE tickets RENAME COLUMN vehiculo_id TO vehicle_id"))
+                logger.info("Migración: tickets.vehiculo_id renombrada a vehicle_id")
+                col_names.discard("vehiculo_id")
+                col_names.add("vehicle_id")
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "vehicle_id",
+                "vehicle_id INTEGER REFERENCES vehicles(id) ON DELETE SET NULL",
+            )
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_tickets_vehicle_id ON tickets (vehicle_id)")
+            )
+
             _add_column_if_missing(conn, "tickets", col_names, "legajo_conductor", "legajo_conductor VARCHAR(32)")
             _add_column_if_missing(conn, "tickets", col_names, "nombre_conductor", "nombre_conductor VARCHAR(160)")
-            _add_column_if_missing(conn, "tickets", col_names, "tipo_actividad", "tipo_actividad VARCHAR(64)")
+            _add_column_if_missing(conn, "tickets", col_names, "tipo_actividad", "tipo_actividad VARCHAR(160)")
+            if "tipo_actividad" in col_names:
+                conn.execute(
+                    text("ALTER TABLE tickets ALTER COLUMN tipo_actividad TYPE VARCHAR(160)")
+                )
             _add_column_if_missing(conn, "tickets", col_names, "estacion_servicio", "estacion_servicio VARCHAR(160)")
             _add_column_if_missing(conn, "tickets", col_names, "km_o_horas", "km_o_horas NUMERIC(14, 3)")
             _add_column_if_missing(

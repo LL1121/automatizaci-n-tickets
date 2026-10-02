@@ -31,7 +31,7 @@ class Ticket(Base):
     operador_nombre: Mapped[str | None] = mapped_column(String(120), nullable=True)
     legajo_conductor: Mapped[str | None] = mapped_column(String(32), nullable=True)
     nombre_conductor: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    tipo_actividad: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tipo_actividad: Mapped[str | None] = mapped_column(String(160), nullable=True)
     estacion_servicio: Mapped[str | None] = mapped_column(String(160), nullable=True)
     monto: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     url_imagen: Mapped[str] = mapped_column(String(1024), nullable=False)

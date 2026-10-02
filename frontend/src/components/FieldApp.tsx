@@ -3,8 +3,8 @@
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { countInboxTickets } from "@/lib/offline-db";
-import type { ConductorForm } from "@/lib/circular";
 import { PendingInbox } from "@/components/PendingInbox";
+import { useConductorStore } from "@/store/useConductorStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useVehicleStore } from "@/store/useVehicleStore";
 import { AnimatePresence, motion } from "framer-motion";
@@ -46,7 +46,10 @@ export function FieldApp() {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
-  const [conductor, setConductor] = useState<ConductorForm | null>(null);
+  const savedLegajo = useConductorStore((s) => s.legajo);
+  const savedNombre = useConductorStore((s) => s.nombre);
+  const setIdentidad = useConductorStore((s) => s.setIdentidad);
+  const [actividad, setActividad] = useState("");
 
   const refreshPending = useCallback(async () => {
     try {
@@ -98,11 +101,13 @@ export function FieldApp() {
 
   const handleVehicleChosen = () => {
     setFeedback(null);
+    setActividad("");
     setStep("conductor");
   };
 
-  const handleConductorDone = (data: ConductorForm) => {
-    setConductor(data);
+  const handleConductorDone = (data: { legajo: string; nombre: string; actividad: string }) => {
+    setIdentidad(data.legajo, data.nombre);
+    setActividad(data.actividad);
     setStep("camera");
   };
 
@@ -110,7 +115,7 @@ export function FieldApp() {
     result:
       | { mode: "synced" }
       | { mode: "queued"; navigatorOffline: boolean }
-      | { mode: "error"; message: string },
+      | { mode: "error"; message: string; missingVehicle?: boolean },
   ) => {
     if (result.mode === "synced") {
       setFeedback({ step: "feedback", variant: "synced" });
@@ -121,6 +126,7 @@ export function FieldApp() {
         navigatorOffline: result.navigatorOffline,
       });
     } else {
+      if (result.missingVehicle) clearVehicle();
       setFeedback({ step: "feedback", variant: "error", message: result.message });
     }
     setStep("feedback");
@@ -147,11 +153,11 @@ export function FieldApp() {
   }
 
   const conductorMeta =
-    conductor && conductor.actividad
+    savedLegajo.trim() && savedNombre.trim() && actividad.trim()
       ? {
-          legajoConductor: conductor.legajo,
-          nombreConductor: conductor.nombre,
-          tipoActividad: conductor.actividad,
+          legajoConductor: savedLegajo.trim(),
+          nombreConductor: savedNombre.trim(),
+          tipoActividad: actividad.trim(),
         }
       : null;
 
@@ -218,7 +224,7 @@ export function FieldApp() {
               onClick={() => {
                 logout();
                 clearVehicle();
-                setConductor(null);
+                setActividad("");
               }}
               className="btn-secondary mt-6 w-full"
             >
@@ -230,7 +236,9 @@ export function FieldApp() {
         {step === "conductor" ? (
           <motion.div key="conductor" {...pageTransition} className="flex flex-1 flex-col">
             <ConductorStep
-              initial={conductor ?? undefined}
+              legajo={savedLegajo}
+              nombre={savedNombre}
+              initialActividad={actividad}
               onContinue={handleConductorDone}
               onBack={() => {
                 clearVehicle();
@@ -251,7 +259,7 @@ export function FieldApp() {
                   type="button"
                   onClick={() => {
                     clearVehicle();
-                    setConductor(null);
+                    setActividad("");
                     setStep("vehicle");
                   }}
                   className="text-field-accent underline-offset-2 hover:underline"
@@ -262,6 +270,7 @@ export function FieldApp() {
               <div className="flex items-center justify-between text-xs text-field-muted">
                 <span>
                   {conductorMeta.nombreConductor} · Legajo {conductorMeta.legajoConductor}
+                  {conductorMeta.tipoActividad ? ` · ${conductorMeta.tipoActividad}` : ""}
                 </span>
                 <button
                   type="button"
@@ -320,7 +329,8 @@ export function FieldApp() {
                 type="button"
                 onClick={() => {
                   setFeedback(null);
-                  setStep(conductorMeta ? "camera" : "conductor");
+                  setActividad("");
+                  setStep(vehicleId != null ? "conductor" : "vehicle");
                 }}
                 className="btn-primary min-h-touch w-full py-4 text-base"
               >

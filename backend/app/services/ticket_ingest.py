@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Literal
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -30,9 +30,20 @@ from app.services.ai_engine import (
 )
 from app.services.consumption import apply_ticket_flags, sync_km_o_horas_from_kilometraje
 from app.services.image_preprocess import ImagePreprocessError, preprocess_for_vision
-from app.services.plate import normalize_patente, patentes_coinciden
+from app.services.plate import format_patente_display, normalize_patente, patentes_coinciden
 
 logger = logging.getLogger(__name__)
+
+VEHICLE_NOT_FOUND = (
+    "No encontramos la patente de ese vehículo. "
+    "Volvé a elegirla en la lista: puede que no esté cargada "
+    "o que el celular tenga un dato viejo."
+)
+
+
+def _mentions_vehicle_column(exc: BaseException) -> bool:
+    text = str(getattr(exc, "orig", exc)).lower()
+    return "vehicle_id" in text or "vehiculo_id" in text
 
 
 IngestStatus = Literal["created", "duplicate", "incomplete", "quota", "ai_error", "preprocess_error", "validation_error"]
@@ -170,8 +181,8 @@ def ingest_ticket_image(
         return IngestOutcome(
             status="validation_error",
             message=(
-                f"La patente del ticket ({patente_leida}) no coincide con la seleccionada "
-                f"({normalize_patente(expected_patente)})."
+                f"La patente del ticket ({format_patente_display(patente_leida)}) "
+                f"no coincide con la seleccionada ({format_patente_display(expected_patente)})."
             ),
             http_status=422,
         )
@@ -203,6 +214,11 @@ def ingest_ticket_image(
     resolved_vehicle_id: int | None = vehicle_id
     if resolved_vehicle_id is None and auto_assign_vehicle and patente_leida:
         match = db.scalar(select(Vehicle).where(Vehicle.patente == patente_leida))
+        if match is None:
+            for candidate in db.scalars(select(Vehicle)).all():
+                if normalize_patente(candidate.patente) == patente_leida:
+                    match = candidate
+                    break
         if match is not None:
             resolved_vehicle_id = match.id
 
@@ -236,7 +252,7 @@ def ingest_ticket_image(
         operador_nombre=operator_name,
         legajo_conductor=(legajo_conductor or "").strip()[:32] or None,
         nombre_conductor=(nombre_conductor or "").strip()[:160] or None,
-        tipo_actividad=(tipo_actividad or "").strip()[:64] or None,
+        tipo_actividad=(tipo_actividad or "").strip()[:160] or None,
         estacion_servicio=estacion,
         monto=Decimal(str(extracted.monto)) if extracted.monto is not None else None,
         ingested_at=datetime.now(timezone.utc),
@@ -246,16 +262,40 @@ def ingest_ticket_image(
     db.add(ticket)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
         try:
             dest.unlink(missing_ok=True)
         except OSError:
             pass
+        if _mentions_vehicle_column(exc):
+            return IngestOutcome(
+                status="validation_error",
+                message=VEHICLE_NOT_FOUND,
+                http_status=400,
+            )
         return IngestOutcome(
             status="duplicate",
             message="Ticket duplicado (violación de unicidad).",
             http_status=409,
+        )
+    except ProgrammingError as exc:
+        db.rollback()
+        try:
+            dest.unlink(missing_ok=True)
+        except OSError:
+            pass
+        logger.exception("Error de esquema al persistir el ticket")
+        if _mentions_vehicle_column(exc):
+            return IngestOutcome(
+                status="validation_error",
+                message=VEHICLE_NOT_FOUND,
+                http_status=400,
+            )
+        return IngestOutcome(
+            status="ai_error",
+            message="Error al guardar el ticket en la base de datos.",
+            http_status=500,
         )
     except Exception:
         db.rollback()

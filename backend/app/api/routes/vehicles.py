@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.vehicle import Vehicle
+from app.services.plate import format_patente_display
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
@@ -19,7 +20,7 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[dict]:
     return [
         {
             "id": v.id,
-            "patente": v.patente,
+            "patente": format_patente_display(v.patente),
             "capacidad_tanque": v.capacidad_tanque,
             "tipo": v.tipo,
         }

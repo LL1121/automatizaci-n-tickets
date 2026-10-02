@@ -2,7 +2,6 @@
 
 import type { AdminTicketRow } from "@/lib/admin-api";
 import { patchAdminTicket, ticketImageUrl } from "@/lib/admin-api";
-import { ACTIVIDAD_OPCIONES } from "@/lib/circular";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { ModalBackdrop } from "@/components/ui/ModalBackdrop";
 import { useEffect, useState } from "react";
@@ -195,18 +194,12 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                 </label>
                 <label className="block text-sm md:col-span-2">
                   <span className="text-field-muted">Tipo de actividad</span>
-                  <select
+                  <input
                     value={actividad}
                     onChange={(e) => setActividad(e.target.value)}
                     className="input-field !min-h-0 mt-1 py-2"
-                  >
-                    <option value="">—</option>
-                    {ACTIVIDAD_OPCIONES.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
+                    maxLength={160}
+                  />
                 </label>
                 <label className="block text-sm md:col-span-2">
                   <span className="text-field-muted">Estación de servicio</span>
