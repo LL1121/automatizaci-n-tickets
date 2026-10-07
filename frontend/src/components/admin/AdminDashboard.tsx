@@ -304,7 +304,7 @@ export function AdminDashboard() {
             <p className="mt-2 text-3xl font-semibold tabular-nums text-brand">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
           </div>
           <div className="card p-5">
-            <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Km registrados (mes)</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Km recorridos (mes)</p>
             <p className="mt-2 text-3xl font-semibold tabular-nums text-brand">
               {summary.total_kilometraje.toLocaleString("es-AR")} km
             </p>
