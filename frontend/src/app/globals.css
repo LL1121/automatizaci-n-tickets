@@ -24,10 +24,6 @@ body {
     @apply inline-flex min-h-touch items-center justify-center rounded-lg bg-brand px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
   }
 
-  .btn-capture {
-    @apply inline-flex min-h-[72px] w-full items-center justify-center rounded-2xl bg-brand-cyan px-6 text-lg font-bold text-white shadow-sm transition hover:bg-brand-cyanDark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan;
-  }
-
   .btn-secondary {
     @apply inline-flex min-h-touch items-center justify-center rounded-lg border border-field-border bg-white px-5 text-sm font-medium text-field-muted transition hover:border-brand/40 hover:text-field-accent;
   }

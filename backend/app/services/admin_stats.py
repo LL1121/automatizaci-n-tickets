@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
 from app.models.vehicle import Vehicle
+from app.services.consumption import previous_ticket_reading, reading_value
 
 
 def _json_float(x: Any) -> float:
@@ -61,20 +62,68 @@ def resolve_period(year: int | None, month: int | None) -> MonthPeriod:
     return MonthPeriod(year=y, month=m, start_utc=start, end_utc=end)
 
 
+def kilometers_traveled_in_month(db: Session, period: MonthPeriod) -> int:
+    """Suma los km recorridos entre cargas, no el odómetro impreso en el ticket.
+
+    Cada ticket trae el km del vehículo en ese momento. El recorrido de esa carga
+    es la diferencia con la lectura anterior del mismo vehículo. Sin lectura previa,
+    o si el contador bajó, esa carga no suma. Las unidades en horas (l_hora) quedan afuera.
+    """
+    eff = effective_ticket_datetime()
+    tickets = db.scalars(
+        select(Ticket)
+        .where(
+            and_(
+                Ticket.vehicle_id.is_not(None),
+                eff >= period.start_utc,
+                eff <= period.end_utc,
+            )
+        )
+        .order_by(Ticket.vehicle_id, Ticket.fecha.asc().nullslast(), Ticket.id.asc())
+    ).all()
+
+    vehicles = {
+        v.id: v
+        for v in db.scalars(select(Vehicle).where(Vehicle.id.in_({t.vehicle_id for t in tickets}))).all()
+    } if tickets else {}
+
+    total = 0.0
+    for ticket in tickets:
+        if ticket.vehicle_id is None:
+            continue
+        veh = vehicles.get(ticket.vehicle_id)
+        if veh is not None and (veh.unidad_consumo or "").strip().lower() == "l_hora":
+            continue
+        current = reading_value(ticket)
+        if current is None:
+            continue
+        previous = previous_ticket_reading(
+            db,
+            vehicle_id=ticket.vehicle_id,
+            before_fecha=ticket.fecha,
+            before_id=ticket.id,
+        )
+        if previous is None:
+            continue
+        delta = current - previous
+        if delta > 0:
+            total += delta
+    return int(round(total))
+
+
 def summary_for_month(db: Session, period: MonthPeriod) -> dict[str, Any]:
     eff = effective_ticket_datetime()
     q = select(
         func.coalesce(func.sum(Ticket.litros), 0),
-        func.coalesce(func.sum(Ticket.kilometraje), 0),
         func.count(Ticket.id),
     ).where(and_(eff >= period.start_utc, eff <= period.end_utc))
 
-    litros, km_sum, n = db.execute(q).one()
+    litros, n = db.execute(q).one()
     return {
         "year": period.year,
         "month": period.month,
         "total_litros": _json_float(litros),
-        "total_kilometraje": _json_int(km_sum),
+        "total_kilometraje": kilometers_traveled_in_month(db, period),
         "cantidad_cargas": _json_int(n),
     }
 
