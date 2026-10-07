@@ -23,6 +23,22 @@ function formatDate(iso: string | null): string {
   }
 }
 
+const MESES_PLANILLA = [
+  "",
+  "ENERO",
+  "FEBRERO",
+  "MARZO",
+  "ABRIL",
+  "MAYO",
+  "JUNIO",
+  "JULIO",
+  "AGOSTO",
+  "SEPTIEMBRE",
+  "OCTUBRE",
+  "NOVIEMBRE",
+  "DICIEMBRE",
+] as const;
+
 function pctLabel(pct: number | null): string {
   if (pct == null) return "—";
   return `${(pct * 100).toFixed(0)}%`;
@@ -121,7 +137,11 @@ export function AdminAuditoriaPage() {
               ))}
             </select>
           </label>
-          <a href={planillaHref} className="btn-primary px-4 py-2 text-sm" download>
+          <a
+            href={planillaHref}
+            className="btn-primary px-4 py-2 text-sm"
+            download={`${MESES_PLANILLA[month] ?? "PLANILLA"}.xlsx`}
+          >
             Descargar planilla oficial
           </a>
         </div>
