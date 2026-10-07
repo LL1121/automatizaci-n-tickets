@@ -48,12 +48,17 @@ if [[ -z "${COMPOSE_CMD+x}" ]]; then
   COMPOSE_CMD=(docker compose)
   if [[ -n "${COMPOSE_FILE:-}" ]]; then
     COMPOSE_CMD=(docker compose -f "$COMPOSE_FILE")
-  elif docker compose -f deploy/docker-compose.yml ps api --status running 2>/dev/null | grep -q running; then
+  elif docker compose -f deploy/docker-compose.yml ps api --status running --format '{{.State}}' 2>/dev/null | grep -qx running; then
     COMPOSE_CMD=(docker compose -f deploy/docker-compose.yml)
+  fi
+  # Producción exige .env (DB_USER, etc.). Sin eso, compose no ve el proyecto.
+  if [[ ${COMPOSE_CMD[*]} == *deploy/docker-compose.yml* && -f .env ]]; then
+    COMPOSE_CMD+=(--env-file .env)
   fi
 fi
 
-if ! "${COMPOSE_CMD[@]}" ps api --status running 2>/dev/null | grep -q running; then
+# `ps` muestra "Up …", no la palabra "running". El estado real está en {{.State}}.
+if ! "${COMPOSE_CMD[@]}" ps api --status running --format '{{.State}}' 2>/dev/null | grep -qx running; then
   echo "Error: el contenedor api no está en ejecución."
   echo "Local:  docker compose up -d"
   echo "Prod:   docker compose -f deploy/docker-compose.yml --env-file .env up -d"
