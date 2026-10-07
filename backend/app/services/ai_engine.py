@@ -29,7 +29,10 @@ Analizá UNA imagen del ticket térmico (alto y angosto) y devolvé ÚNICAMENTE 
 - monto: número decimal o null, total en pesos (TOTAL, IMPORTE, $) si aparece
 - estacion_servicio: string o null, nombre de la estación / comercio (cabecera del ticket)
 - remito: string o null, junto a "REMITO" si aparece
-- fecha: string ISO 8601 con zona -03:00 (preferí "Fecha Impresion" del pie)
+- fecha: string TAL CUAL está impresa (preferí "Fecha Impresion" del pie).
+  En Argentina el orden es día/mes/año, NUNCA mes/día.
+  Si el ticket dice 05/10/2026, devolvé "05/10/2026" (5 de octubre de 2026, no 10 de mayo).
+  No la conviertas a ISO ni a formato estadounidense.
 - confidence_score: número entre 0 y 1
 
 OCR en tickets térmicos — leé carácter por carácter; evitá confusiones:
@@ -45,7 +48,8 @@ Reglas:
 USER_PROMPT = (
     "Extraé los datos del ticket YPF EN RUTA. "
     "Buscá Patente:, Km:, columna CANT (litros), tipo de combustible, TOTAL/monto, nombre de estación, "
-    "REMITO (si existe) y Fecha Impresion."
+    "REMITO (si existe) y Fecha Impresion. "
+    "La fecha va día/mes/año: 05/10/2026 es el 5 de octubre."
 )
 
 
@@ -142,7 +146,7 @@ def _google_error_message(exc: google_exceptions.GoogleAPIError) -> AIEngineErro
     if isinstance(exc, google_exceptions.ResourceExhausted):
         return AIQuotaExceededError(
             "Cuota de Gemini agotada (plan gratuito o límite diario). "
-            "Probá más tarde, cambiá GEMINI_MODEL en .env (ej. gemini-2.0-flash-lite) "
+            "Probá más tarde, cambiá GEMINI_MODEL en .env (ej. gemini-3.5-flash-lite) "
             "o activá facturación en Google AI Studio: https://aistudio.google.com/apikey"
         )
     if isinstance(exc, google_exceptions.NotFound):

@@ -10,6 +10,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -78,28 +79,37 @@ def _normalize_remito(raw: str | None) -> str | None:
     return cleaned[:64] if cleaned else None
 
 
+_AR_TZ = ZoneInfo("America/Argentina/Mendoza")
+
+
 def _parse_fecha(value: str | None) -> datetime | None:
+    """Lee la fecha impresa en el ticket. En Argentina es día/mes/año, no mes/día."""
     if not value:
         return None
     text = value.strip()
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        pass
+    # Primero DD/MM/AAAA. Si entra ISO (2026-05-10), fromisoformat no puede saber que el modelo invirtió el día.
     m = re.match(
-        r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$",
+        r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?",
         text,
     )
     if m:
         try:
             day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if year < 100:
+                year += 2000
             hour = int(m.group(4) or 0)
             minute = int(m.group(5) or 0)
             second = int(m.group(6) or 0)
-            return datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc)
+            return datetime(year, month, day, hour, minute, second, tzinfo=_AR_TZ)
         except ValueError:
             return None
-    return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=_AR_TZ)
+    return parsed
 
 
 def _ticket_to_dict(ticket: Ticket, *, patente_leida: str | None) -> dict:
