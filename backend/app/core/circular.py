@@ -36,6 +36,7 @@ MESES_MAYUSCULA: tuple[str, ...] = (
     "DICIEMBRE",
 )
 
+# Columnas A–K de app/templates/SEPTIEMBRE.xlsx. La planilla oficial se copia de ese archivo.
 PLANILLA_HEADERS: tuple[str, ...] = (
     "FECHA",
     "LEGAJO",
