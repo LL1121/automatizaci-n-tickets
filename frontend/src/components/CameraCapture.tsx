@@ -283,6 +283,25 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
           Reiniciar
         </button>
 
+        {!error ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void shutter()}
+            aria-label={busy ? "Procesando captura" : "Capturar ticket"}
+            className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-brand-cyan text-white shadow-[0_4px_24px_rgba(0,153,216,0.45)] ring-4 ring-black/30 disabled:opacity-50"
+          >
+            {busy ? (
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            )}
+          </button>
+        ) : null}
+
         {error ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-6">
             <p className="max-w-sm rounded-lg bg-status-lateBg px-4 py-2 text-center text-xs font-medium text-status-lateText shadow-lg">
@@ -291,18 +310,6 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
           </div>
         ) : null}
       </div>
-
-      {!error ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void shutter()}
-          aria-label={busy ? "Procesando captura" : "Capturar ticket"}
-          className="btn-capture mt-3 disabled:opacity-50"
-        >
-          {busy ? "Procesando…" : "Capturar ticket"}
-        </button>
-      ) : null}
     </motion.div>
   );
 }
