@@ -45,16 +45,16 @@ export function AdminLogin() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-field-bg p-6">
-      <div className="card w-full max-w-md p-7 shadow-md">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Image src="/logo-irrigacion.svg" alt="Irrigación Malargüe" width={180} height={40} priority />
-          <div>
-            <h1 className="text-xl font-semibold text-brand">Panel de administración</h1>
-            <p className="mt-1 text-sm text-field-muted">Ingresá con tu usuario admin para continuar.</p>
+      <div className="card w-full max-w-md overflow-hidden shadow-md">
+        <div className="border-b-4 border-brand-cyan bg-brand px-7 pb-6 pt-7 text-center">
+          <div className="mx-auto inline-flex rounded-lg bg-white px-4 py-2">
+            <Image src="/logo-irrigacion.svg" alt="Irrigación Malargüe" width={180} height={40} priority />
           </div>
+          <h1 className="mt-4 text-xl font-semibold text-white">Panel de administración</h1>
+          <p className="mt-1 text-sm text-white/75">Ingresá con tu usuario admin para continuar.</p>
         </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-4" autoComplete="on">
+        <form onSubmit={submit} className="flex flex-col gap-4 p-7" autoComplete="on">
           <label className="block text-sm">
             <span className="text-field-muted">Usuario</span>
             <input
@@ -100,7 +100,7 @@ export function AdminLogin() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-field-muted">
+        <p className="mt-2 px-7 pb-7 text-center text-xs text-field-muted">
           Si olvidaste tu contraseña, contactá al responsable del sistema.
         </p>
       </div>

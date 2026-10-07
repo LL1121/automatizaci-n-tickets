@@ -112,7 +112,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
               {(ticket.rendicion_tardia || ticket.desvio_detectado) && (
                 <div className="flex flex-wrap gap-2">
                   {ticket.rendicion_tardia ? (
-                    <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-medium text-white">
+                    <span className="rounded-full bg-status-lateBg px-2.5 py-0.5 text-xs font-medium text-status-lateText">
                       Rendición tardía (&gt; 48 h hábiles)
                     </span>
                   ) : null}

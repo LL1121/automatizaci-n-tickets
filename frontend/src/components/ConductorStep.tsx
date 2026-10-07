@@ -101,7 +101,7 @@ export function ConductorStep({
         <input
           value={actividad}
           onChange={(e) => setActividad(e.target.value)}
-          className="input-field mt-1"
+          className="input-field mt-1 focus:border-brand-cyan focus:ring-brand-cyan/20"
           placeholder="Ej. Recorrido de canales"
           maxLength={160}
           required

@@ -162,27 +162,31 @@ export function FieldApp() {
       : null;
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 pb-8 pt-4">
-      <header className="mb-6 flex items-center justify-between gap-3">
+    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-field-surface px-4 pb-8">
+      <header className="-mx-4 mb-6 flex items-center justify-between gap-3 border-b-4 border-brand-cyan bg-brand px-4 py-4 text-white">
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/irrigacion-malargue.png"
-            alt="Irrigación Malargüe"
-            className="h-12 w-12 shrink-0 object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white p-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/irrigacion-malargue.png"
+              alt="Irrigación Malargüe"
+              className="h-10 w-10 object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-field-text">Fotografía</h1>
-            {operatorName ? <p className="text-xs text-field-muted">Operario: {operatorName}</p> : null}
+            <h1 className="text-lg font-semibold text-white">Fotografía</h1>
+            {operatorName ? <p className="text-xs text-white/75">Operario: {operatorName}</p> : null}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1 text-right text-xs text-field-muted">
+        <div className="flex flex-col items-end gap-1 text-right text-xs">
           <span
             className={
-              online ? "rounded-full bg-status-verifiedBg px-2 py-0.5 text-status-verifiedText" : "rounded-full bg-red-100 px-2 py-0.5 text-red-700"
+              online
+                ? "rounded-full bg-brand-cyan px-2.5 py-0.5 font-medium text-white"
+                : "rounded-full bg-status-lateBg px-2.5 py-0.5 font-medium text-status-lateText"
             }
           >
             {online ? "En línea" : "Sin conexión"}
@@ -194,7 +198,7 @@ export function FieldApp() {
               className={`rounded-full px-2 py-0.5 font-medium ${
                 pendingCount > 0
                   ? "bg-status-pendingBg text-status-pendingText"
-                  : "text-field-muted hover:text-field-accent"
+                  : "text-white/80 hover:text-white"
               }`}
             >
               Pendientes{pendingCount > 0 ? `: ${pendingCount}` : ""}
@@ -204,7 +208,7 @@ export function FieldApp() {
       </header>
 
       {toast ? (
-        <div className="mb-4 rounded-xl border border-brand/20 bg-brand-light px-4 py-3 text-sm text-brand">
+        <div className="mb-4 rounded-xl border border-brand-cyan/30 bg-brand-light px-4 py-3 text-sm text-brand">
           {toast}
         </div>
       ) : null}

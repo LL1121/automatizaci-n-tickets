@@ -138,7 +138,7 @@ export function AdminAuditoriaPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-brand/5 text-xs uppercase tracking-wide text-field-muted">
+            <thead className="table-header">
               <tr>
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3">Patente</th>
@@ -159,8 +159,8 @@ export function AdminAuditoriaPage() {
                 <tr
                   key={row.id}
                   onClick={() => setSelected(row)}
-                  className={`cursor-pointer border-t border-field-border hover:bg-brand-light/40 ${
-                    row.rendicion_tardia ? "bg-red-50 text-red-900" : ""
+                  className={`cursor-pointer border-t border-field-border hover:bg-blue-50/30 ${
+                    row.rendicion_tardia ? "bg-status-lateBg text-status-lateText" : ""
                   }`}
                 >
                   <td className="px-4 py-3 whitespace-nowrap">{formatDate(row.fecha ?? row.ingested_at)}</td>
@@ -178,7 +178,7 @@ export function AdminAuditoriaPage() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {row.rendicion_tardia ? (
-                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
+                        <span className="rounded-full bg-status-lateBg px-2.5 py-0.5 text-xs font-medium text-status-lateText">
                           Rendición tardía
                         </span>
                       ) : null}
@@ -205,7 +205,7 @@ export function AdminAuditoriaPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-brand/5 text-xs uppercase tracking-wide text-field-muted">
+            <thead className="table-header">
               <tr>
                 <th className="px-4 py-3">Patente</th>
                 <th className="px-4 py-3">Tipo</th>
@@ -274,7 +274,7 @@ function VehicleFleetRow({
   }, [vehicle]);
 
   return (
-    <tr className="border-t border-field-border">
+    <tr className="border-t border-field-border hover:bg-blue-50/30">
       <td className="px-4 py-3 font-mono font-medium">{vehicle.patente}</td>
       <td className="px-4 py-2">
         <select
