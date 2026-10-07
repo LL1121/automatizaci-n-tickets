@@ -2,6 +2,7 @@
 
 import { ChangeMyPasswordDialog } from "@/components/admin/ChangeMyPasswordDialog";
 import { useAdminAuth } from "@/store/useAdminAuth";
+import { ArrowLeft, ClipboardCheck, LayoutDashboard, Users } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -10,45 +11,13 @@ import { useState, type ReactNode } from "react";
 type NavItem = { href: string; label: string; icon: ReactNode };
 
 const NAV: NavItem[] = [
-  {
-    href: "/admin",
-    label: "Dashboard",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-        />
-      </svg>
-    ),
-  },
+  { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" aria-hidden /> },
   {
     href: "/admin/auditoria",
     label: "Auditoría y Desvíos",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-        />
-      </svg>
-    ),
+    icon: <ClipboardCheck className="h-5 w-5" aria-hidden />,
   },
-  {
-    href: "/admin/users",
-    label: "Usuarios admin",
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 014-4h2a4 4 0 014 4v2m-3-10a4 4 0 11-8 0 4 4 0 018 0zm6 0a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    ),
-  },
+  { href: "/admin/users", label: "Usuarios admin", icon: <Users className="h-5 w-5" aria-hidden /> },
 ];
 
 export function AdminSidebar() {
@@ -68,7 +37,7 @@ export function AdminSidebar() {
 
   return (
     <aside className="flex w-64 shrink-0 flex-col bg-brand text-white">
-      <div className="border-b border-white/10 px-5 py-5">
+      <div className="border-b border-brand-cyan/30 px-5 py-5">
         <Link href="/admin" className="block">
           <Image src="/logo-irrigacion.svg" alt="Irrigación Malargüe" width={180} height={40} priority />
         </Link>
@@ -83,7 +52,7 @@ export function AdminSidebar() {
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                active ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
+                active ? "bg-brand-cyan/20 text-white" : "text-white/80 hover:bg-white/10 hover:text-white"
               }`}
             >
               {item.icon}
@@ -95,9 +64,7 @@ export function AdminSidebar() {
           href="/"
           className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
+          <ArrowLeft className="h-5 w-5" aria-hidden />
           App campo
         </Link>
       </nav>

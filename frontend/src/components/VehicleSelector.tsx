@@ -76,7 +76,7 @@ export function VehicleSelector({ onSelected }: Props) {
                 type="button"
                 whileTap={{ scale: 0.98 }}
                 onClick={() => pick(v)}
-                className="card flex min-h-touch w-full items-center justify-between px-5 py-4 text-left transition hover:border-brand/40 hover:shadow-md"
+                className="card flex min-h-touch w-full items-center justify-between px-5 py-4 text-left transition hover:border-brand-cyan/60 hover:shadow-md"
               >
                 <span className="font-mono text-lg text-field-text">{v.patente}</span>
                 {v.capacidad_tanque != null ? (

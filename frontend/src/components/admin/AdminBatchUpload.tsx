@@ -45,7 +45,7 @@ function statusClasses(s: LocalStatus): string {
     case "duplicate":
       return "bg-brand-light text-brand";
     case "error":
-      return "bg-red-100 text-red-800";
+      return "bg-status-lateBg text-status-lateText";
     case "uploading":
       return "bg-brand-light text-brand";
     default:
@@ -251,11 +251,11 @@ export function AdminBatchUpload({ onUploaded }: Props) {
           }}
           animate={{
             scale: dragActive ? 1.015 : 1,
-            borderColor: dragActive ? "#0066CC" : "#cbd5e1",
-            backgroundColor: dragActive ? "#eef5ff" : "#f8fafc",
+            borderColor: dragActive ? "#0099D8" : "#E2E8F0",
+            backgroundColor: dragActive ? "#EAF4FB" : "#FFFFFF",
           }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-field-border bg-field-surface px-6 py-10 text-center"
+          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-brand-cyan/50 bg-white px-6 py-10 text-center transition hover:border-brand-cyan"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-light text-brand">
             <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>

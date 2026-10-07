@@ -86,7 +86,7 @@ function SortHead({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 font-medium hover:text-field-accent ${active ? "text-field-accent" : "text-field-muted"}`}
+      className={`flex items-center gap-1 font-medium hover:text-brand-cyan ${active ? "text-brand" : "text-brand/80"}`}
     >
       {label}
       {active ? <span className="text-xs opacity-80">{order === "asc" ? "↑" : "↓"}</span> : null}
@@ -240,10 +240,9 @@ export function AdminDashboard() {
   });
 
   const rowTone = (r: AdminTicketRow, index: number) => {
-    if (r.rendicion_tardia) return "bg-red-50 text-red-900 hover:bg-red-100/80";
+    if (r.rendicion_tardia) return "bg-status-lateBg text-status-lateText hover:bg-status-lateBg";
     const alt = index % 2 === 1 ? "bg-field-surface" : "bg-white";
-    if (r.is_verified) return `${alt} hover:bg-brand-light/40`;
-    return `${alt} hover:bg-brand-light/50`;
+    return `${alt} hover:bg-blue-50/30`;
   };
 
   return (
@@ -302,7 +301,7 @@ export function AdminDashboard() {
         <section className="grid gap-4 md:grid-cols-3">
           <div className="card p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Total litros (mes)</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-field-text">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-brand">{summary.total_litros.toLocaleString("es-AR", { maximumFractionDigits: 1 })} L</p>
           </div>
           <div className="card p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Km registrados (mes)</p>
@@ -312,7 +311,7 @@ export function AdminDashboard() {
           </div>
           <div className="card p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-field-muted">Cantidad de cargas</p>
-            <p className="mt-2 text-3xl font-semibold tabular-nums text-field-text">{summary.cantidad_cargas}</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums text-brand">{summary.cantidad_cargas}</p>
           </div>
         </section>
       ) : null}
@@ -347,7 +346,7 @@ export function AdminDashboard() {
           <table className="w-full min-w-[800px] border-collapse text-left text-sm">
             <thead>
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-field-border bg-field-surface text-xs uppercase text-field-muted">
+                <tr key={hg.id} className="table-header border-b border-field-border">
                   {hg.headers.map((h) => (
                     <th key={h.id} className="px-4 py-3 font-medium">
                       {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
