@@ -21,7 +21,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import AdminPrincipal
-from app.core.circular import MESES_MAYUSCULA
+from app.core.circular import MESES_MAYUSCULA, etiqueta_tipo_vehiculo
 from app.core.config import get_settings
 from app.core.security import AuthConfigError, create_admin_token, verify_password
 from app.db.session import get_db
@@ -669,7 +669,7 @@ def _fill_planilla(ws: Worksheet, *, year: int, month: int, rows: list[tuple[Tic
             ticket.legajo_conductor or "",
             ticket.nombre_conductor or "",
             ticket.tipo_actividad or "",
-            (vehicle.modelo or "") if vehicle else "",
+            etiqueta_tipo_vehiculo(vehicle.tipo, vehicle.modelo) if vehicle else "",
             patente,
             _km_planilla(ticket),
             float(ticket.litros) if ticket.litros is not None else "",
