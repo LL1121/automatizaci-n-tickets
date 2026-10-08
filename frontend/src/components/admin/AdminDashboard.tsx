@@ -6,13 +6,14 @@ import { AdminTicketPanel } from "@/components/admin/AdminTicketPanel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { AdminSortKey, AdminSortOrder, AdminTicketRow, AdminSummary, VehicleStat } from "@/lib/admin-api";
 import {
-  exportMonthlyUrl,
+  exportPlanillaOficialUrl,
   fetchAdminSummary,
   fetchAdminTickets,
   fetchAdminVehicleStats,
   monthUtcIsoRange,
   ticketImageUrl,
 } from "@/lib/admin-api";
+import { nombrePlanilla } from "@/lib/circular";
 import {
   flexRender,
   getCoreRowModel,
@@ -278,8 +279,8 @@ export function AdminDashboard() {
         </div>
         {ready && year != null && month != null ? (
           <a
-            href={exportMonthlyUrl(year, month)}
-            download
+            href={exportPlanillaOficialUrl(year, month)}
+            download={nombrePlanilla(month)}
             className="btn-primary min-h-12"
           >
             Exportar Excel (.xlsx)

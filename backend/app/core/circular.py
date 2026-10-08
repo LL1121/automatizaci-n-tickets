@@ -20,6 +20,16 @@ VEHICLE_TIPO_LABELS: dict[str, str] = {
     "maquinaria": "Maquinaria",
 }
 
+
+def etiqueta_tipo_vehiculo(tipo: str | None, modelo: str | None = None) -> str:
+    """Texto de la columna TIPO: categoría, o el tipo de máquina si está cargado."""
+    if tipo == "maquinaria":
+        nombre = " ".join((modelo or "").split())
+        return nombre or VEHICLE_TIPO_LABELS["maquinaria"]
+    if tipo:
+        return VEHICLE_TIPO_LABELS.get(tipo, tipo)
+    return " ".join((modelo or "").split())
+
 MESES_MAYUSCULA: tuple[str, ...] = (
     "",
     "ENERO",

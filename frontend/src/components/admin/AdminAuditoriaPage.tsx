@@ -10,7 +10,7 @@ import {
   monthUtcIsoRange,
   patchAdminVehicle,
 } from "@/lib/admin-api";
-import { UNIDAD_CONSUMO_OPTIONS, VEHICLE_TIPO_OPTIONS } from "@/lib/circular";
+import { UNIDAD_CONSUMO_OPTIONS, VEHICLE_TIPO_OPTIONS, nombrePlanilla } from "@/lib/circular";
 import { useAdminAuth } from "@/store/useAdminAuth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -22,22 +22,6 @@ function formatDate(iso: string | null): string {
     return iso;
   }
 }
-
-const MESES_PLANILLA = [
-  "",
-  "ENERO",
-  "FEBRERO",
-  "MARZO",
-  "ABRIL",
-  "MAYO",
-  "JUNIO",
-  "JULIO",
-  "AGOSTO",
-  "SEPTIEMBRE",
-  "OCTUBRE",
-  "NOVIEMBRE",
-  "DICIEMBRE",
-] as const;
 
 function pctLabel(pct: number | null): string {
   if (pct == null) return "—";
@@ -140,7 +124,7 @@ export function AdminAuditoriaPage() {
           <a
             href={planillaHref}
             className="btn-primary px-4 py-2 text-sm"
-            download={`${MESES_PLANILLA[month] ?? "PLANILLA"}.xlsx`}
+            download={nombrePlanilla(month)}
           >
             Descargar planilla oficial
           </a>
@@ -314,7 +298,7 @@ function VehicleFleetRow({
         <input
           className="input-field !min-h-0 w-36 py-1.5"
           value={modelo}
-          placeholder="CAPTUR"
+          placeholder={tipo === "maquinaria" ? "Retroexcavadora" : "CAPTUR"}
           onChange={(e) => setModelo(e.target.value)}
         />
       </td>

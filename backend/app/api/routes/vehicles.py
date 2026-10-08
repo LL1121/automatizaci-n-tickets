@@ -23,6 +23,7 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[dict]:
             "patente": format_patente_display(v.patente),
             "capacidad_tanque": v.capacidad_tanque,
             "tipo": v.tipo,
+            "modelo": v.modelo,
         }
         for v in rows
     ]
