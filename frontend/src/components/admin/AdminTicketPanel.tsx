@@ -35,6 +35,9 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(false);
+  const enHoras = ticket.vehicle_unidad_medida === "HORAS";
+  const etiquetaLectura = enHoras ? "Horas de motor (Horómetro)" : "Km (IA)";
+  const etiquetaLecturaOficial = enHoras ? "Horas de motor (Horómetro)" : "Km/Hs oficial";
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
@@ -71,8 +74,12 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
       else body.fecha = new Date(fechaLocal).toISOString();
 
       if (body.litros != null && Number.isNaN(body.litros)) throw new Error("Litros inválidos");
-      if (body.kilometraje != null && Number.isNaN(body.kilometraje)) throw new Error("Kilometraje inválido");
-      if (body.km_o_horas != null && Number.isNaN(body.km_o_horas)) throw new Error("Km/Hs inválido");
+      if (body.kilometraje != null && Number.isNaN(body.kilometraje)) {
+        throw new Error(enHoras ? "Horómetro inválido" : "Kilometraje inválido");
+      }
+      if (body.km_o_horas != null && Number.isNaN(body.km_o_horas)) {
+        throw new Error(enHoras ? "Horómetro inválido" : "Km/Hs inválido");
+      }
       if (body.monto != null && Number.isNaN(body.monto)) throw new Error("Monto inválido");
 
       const updated = await patchAdminTicket(ticket.id, body);
@@ -109,7 +116,10 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
               </button>
             </div>
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
-              {(ticket.rendicion_tardia || ticket.desvio_detectado) && (
+              {(ticket.rendicion_tardia ||
+                ticket.desvio_detectado ||
+                ticket.alerta_tanque ||
+                ticket.alerta_telemetria) && (
                 <div className="flex flex-wrap gap-2">
                   {ticket.rendicion_tardia ? (
                     <span className="rounded-full bg-status-lateBg px-2.5 py-0.5 text-xs font-medium text-status-lateText">
@@ -120,6 +130,16 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                     <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-white">
                       Desvío de consumo
                       {ticket.desvio_pct != null ? ` (${(ticket.desvio_pct * 100).toFixed(0)}%)` : ""}
+                    </span>
+                  ) : null}
+                  {ticket.alerta_tanque ? (
+                    <span className="rounded-full bg-status-lateBg px-2.5 py-0.5 text-xs font-medium text-status-lateText">
+                      Volumen cargado supera la capacidad máxima del tanque físico
+                    </span>
+                  ) : null}
+                  {ticket.alerta_telemetria ? (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      La lectura no cierra con el odómetro o el horómetro
                     </span>
                   ) : null}
                 </div>
@@ -230,7 +250,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-field-muted">Km (IA)</span>
+                  <span className="text-field-muted">{etiquetaLectura}</span>
                   <input
                     type="number"
                     step="1"
@@ -240,7 +260,7 @@ export function AdminTicketPanel({ ticket, onClose, onSaved }: Props) {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-field-muted">Km/Hs oficial</span>
+                  <span className="text-field-muted">{etiquetaLecturaOficial}</span>
                   <input
                     type="number"
                     step="0.001"

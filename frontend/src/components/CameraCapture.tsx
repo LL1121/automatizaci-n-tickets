@@ -20,6 +20,7 @@ type Props = {
   vehicleId: number;
   patente: string;
   conductor: UploadConductorMeta;
+  mideHoras?: boolean;
   onResult: (
     r:
       | { mode: "synced" }
@@ -28,7 +29,13 @@ type Props = {
   ) => void;
 };
 
-export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props) {
+function lecturaHorometro(raw: string): number | null {
+  const n = Number(raw.trim().replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+export function CameraCapture({ vehicleId, patente, conductor, mideHoras = false, onResult }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -37,6 +44,9 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [frozenUrl, setFrozenUrl] = useState<string | null>(null);
+  const [horometro, setHorometro] = useState("");
+  const horasMotor = mideHoras ? lecturaHorometro(horometro) : null;
+  const faltaHorometro = mideHoras && horasMotor == null;
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -165,6 +175,10 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
 
   const shutter = async () => {
     if (busy) return;
+    if (mideHoras && lecturaHorometro(horometro) == null) {
+      setError("Cargá las horas de motor (horómetro) antes de sacar la foto.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -178,7 +192,13 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
         setBusy(false);
         return;
       }
-      const outcome = await persistAndTryUpload(file, vehicleId, patente, conductor);
+      const outcome = await persistAndTryUpload(
+        file,
+        vehicleId,
+        patente,
+        conductor,
+        mideHoras ? lecturaHorometro(horometro) : null,
+      );
       if (outcome.mode === "synced") {
         onResult({ mode: "synced" });
       } else {
@@ -220,6 +240,18 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
 
   return (
     <motion.div className="relative flex min-h-0 flex-1 flex-col">
+      {mideHoras ? (
+        <label className="mb-3 block shrink-0 text-sm">
+          <span className="text-field-muted">Horas de motor (Horómetro)</span>
+          <input
+            inputMode="decimal"
+            value={horometro}
+            onChange={(e) => setHorometro(e.target.value)}
+            placeholder="Horas de motor (Horómetro)"
+            className="input-field mt-1"
+          />
+        </label>
+      ) : null}
       <div
         ref={containerRef}
         className="relative min-h-[min(72dvh,680px)] w-full flex-1 overflow-hidden rounded-2xl bg-black ring-1 ring-field-border aspect-[3/4]"
@@ -286,7 +318,7 @@ export function CameraCapture({ vehicleId, patente, conductor, onResult }: Props
         {!error ? (
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || faltaHorometro}
             onClick={() => void shutter()}
             aria-label={busy ? "Procesando captura" : "Capturar ticket"}
             className="absolute bottom-4 right-4 z-20 flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full bg-brand-cyan text-white shadow-[0_4px_24px_rgba(0,153,216,0.45)] ring-4 ring-black/30 disabled:opacity-50"

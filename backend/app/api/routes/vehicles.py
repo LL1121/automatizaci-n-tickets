@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.vehicle import Vehicle
+from app.models.vehicle import Vehicle, medida_de_consumo
 from app.services.plate import format_patente_display
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -24,6 +24,7 @@ def list_vehicles(db: Session = Depends(get_db)) -> list[dict]:
             "capacidad_tanque": v.capacidad_tanque,
             "tipo": v.tipo,
             "modelo": v.modelo,
+            "unidad_medida": v.unidad_medida or medida_de_consumo(v.unidad_consumo),
         }
         for v in rows
     ]

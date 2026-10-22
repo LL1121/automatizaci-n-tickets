@@ -100,7 +100,13 @@ export async function flushPendingTickets(options: FlushOptions = {}): Promise<F
     });
 
     try {
-      await uploadTicketFile(file, row.vehicleId, getOrCreateDeviceUid(), conductorFromRow(row));
+      await uploadTicketFile(
+        file,
+        row.vehicleId,
+        getOrCreateDeviceUid(),
+        conductorFromRow(row),
+        row.kmOHoras,
+      );
       await deletePendingTicket(row.id);
       uploaded += 1;
     } catch (e) {
@@ -127,6 +133,7 @@ export async function persistAndTryUpload(
   vehicleId: number,
   patente: string,
   conductor: UploadConductorMeta,
+  kmOHoras?: number | null,
 ): Promise<{ mode: "synced" } | { mode: "queued"; navigatorOffline: boolean }> {
   const id = crypto.randomUUID();
   const imageBuffer = await file.arrayBuffer();
@@ -142,12 +149,13 @@ export async function persistAndTryUpload(
     legajoConductor: conductor.legajoConductor,
     nombreConductor: conductor.nombreConductor,
     tipoActividad: conductor.tipoActividad,
+    kmOHoras: kmOHoras != null && Number.isFinite(kmOHoras) ? kmOHoras : undefined,
   };
 
   await putPendingTicket(record);
 
   try {
-    await uploadTicketFile(file, vehicleId, getOrCreateDeviceUid(), conductor);
+    await uploadTicketFile(file, vehicleId, getOrCreateDeviceUid(), conductor, kmOHoras);
     await deletePendingTicket(id);
     return { mode: "synced" };
   } catch (e) {

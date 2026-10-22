@@ -58,6 +58,7 @@ export async function uploadTicketFile(
   vehicleId: number,
   deviceUid: string,
   conductor?: UploadConductorMeta,
+  kmOHoras?: number | null,
 ): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("file", file);
@@ -67,6 +68,9 @@ export async function uploadTicketFile(
     form.append("legajo_conductor", conductor.legajoConductor);
     form.append("nombre_conductor", conductor.nombreConductor);
     form.append("tipo_actividad", conductor.tipoActividad);
+  }
+  if (kmOHoras != null && Number.isFinite(kmOHoras)) {
+    form.append("km_o_horas", String(kmOHoras));
   }
 
   const res = await fetch(`${getApiBase()}/upload`, {

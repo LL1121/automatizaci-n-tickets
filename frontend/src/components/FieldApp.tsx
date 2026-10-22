@@ -2,6 +2,7 @@
 
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { getApiBase } from "@/lib/api";
 import { countInboxTickets } from "@/lib/offline-db";
 import { PendingInbox } from "@/components/PendingInbox";
 import { useConductorStore } from "@/store/useConductorStore";
@@ -38,6 +39,8 @@ export function FieldApp() {
   const operatorName = useSessionStore((s) => s.operatorName);
   const vehicleId = useVehicleStore((s) => s.vehicleId);
   const patente = useVehicleStore((s) => s.patente);
+  const unidadMedida = useVehicleStore((s) => s.unidadMedida);
+  const setVehicle = useVehicleStore((s) => s.setVehicle);
   const clearVehicle = useVehicleStore((s) => s.clearVehicle);
   const logout = useSessionStore((s) => s.logout);
 
@@ -63,6 +66,25 @@ export function FieldApp() {
   useEffect(() => {
     void refreshPending();
   }, [refreshPending, step, feedback]);
+
+  useEffect(() => {
+    if (vehicleId == null || unidadMedida) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${getApiBase()}/vehicles`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { id: number; patente: string; unidad_medida?: string | null }[];
+        const match = data.find((v) => v.id === vehicleId);
+        if (!cancelled && match) setVehicle(match.id, match.patente, match.unidad_medida);
+      } catch {
+        /* Si no hay red, el horómetro aparece al volver a elegir el vehículo. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicleId, unidadMedida, setVehicle]);
 
   const onFlush = useCallback(
     async (result: { uploaded: number; failed: number; errors: string[] }) => {
@@ -288,6 +310,7 @@ export function FieldApp() {
             <CameraCapture
               vehicleId={vehicleId}
               patente={patente}
+              mideHoras={unidadMedida === "HORAS"}
               conductor={conductorMeta}
               onResult={handleCaptureResult}
             />

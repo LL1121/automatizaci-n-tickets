@@ -1,67 +1,105 @@
-"""Semilla y alta idempotente de vehículos de la flota."""
+"""Padrón oficial de Malargüe. Al arrancar el API deja solo estas unidades."""
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models.vehicle import Vehicle
+from app.models.vehicle import Vehicle, consumo_de_medida
 from app.services.plate import normalize_patente
 
 logger = logging.getLogger(__name__)
 
-_DEMO_FLEET: tuple[tuple[str, float | None], ...] = (
-    ("AB123CD", 80.0),
-    ("XY987ZZ", 55.0),
-    ("AA000BB", 70.0),
+
+@dataclass(frozen=True)
+class FleetUnit:
+    patente: str
+    alias: str
+    dominio_pressa: str
+    tipo: str
+    capacidad_tanque: float
+    unidad_medida: str
+    modelo: str | None = None
+
+
+@dataclass(frozen=True)
+class FleetSync:
+    added: list[str]
+    updated: list[str]
+    removed: list[str]
+
+
+# SANY-SY215C conserva el guion: el normalizador lo borraría.
+OFFICIAL_FLEET: tuple[FleetUnit, ...] = (
+    FleetUnit("GKD427", "CAMION RENAULT", "GKD 427", "camion", 380, "KM"),
+    FleetUnit("PLH110", "HILUX 110 J MAQ", "PLH 110", "camioneta", 80, "KM"),
+    FleetUnit("EVF245", "HILUX 245 DIQUE", "EVF 245", "camioneta", 80, "KM"),
+    FleetUnit("AH715QW", "IVECO CARRETON HI WAY", "AH715QW", "camion", 600, "KM"),
+    FleetUnit("AG220PF", "IVECO TECTOR BATEA PF", "AG220PF", "camion", 236, "KM"),
+    FleetUnit("EVA71", "JCB 3CX", "EVA 71", "maquinaria", 160, "HORAS", "Retroexcavadora"),
+    FleetUnit("AG975ZC", "RANGER ZC", "AG975ZC", "camioneta", 80, "KM"),
+    FleetUnit("AC979ML", "S10 ML SUB MALARGUE", "AC979ML", "camioneta", 76, "KM"),
+    FleetUnit("SANY-SY215C", "SANY SY215C M", "SIN DOM", "maquinaria", 335, "HORAS", "Excavadora"),
 )
 
-# Patentes reales. Se guardan normalizadas (sin espacios) para cruzar con el ticket.
-# Se insertan al arrancar el API. Capacidad de tanque en litros, o None si no se conoce.
-FLEET_PATENTES: tuple[tuple[str, float | None], ...] = (
-    ("AC979ML", 70.0),
-    ("EVF245", None),
-)
+
+def fleet_storage_key(patente: str) -> str:
+    """Clave de padrón. La SANY no pasa por el normalizador."""
+    compact = patente.strip().upper().replace(" ", "")
+    if compact in {"SANY-SY215C", "SANYSY215C"}:
+        return "SANY-SY215C"
+    return normalize_patente(patente)
 
 
-def ensure_fleet_vehicles(db: Session) -> list[str]:
-    """Inserta patentes de la flota que aún no estén en la base. Devuelve las agregadas."""
-    existing = {
-        normalize_patente(v.patente): v
-        for v in db.scalars(select(Vehicle)).all()
-    }
+def ensure_fleet_vehicles(db: Session) -> FleetSync:
+    """Deja solo las 9 unidades y actualiza tanque, tipo, unidad, alias y dominio Pressa."""
+    existing = {fleet_storage_key(v.patente): v for v in db.scalars(select(Vehicle)).all()}
+    official_keys = {fleet_storage_key(unit.patente) for unit in OFFICIAL_FLEET}
     added: list[str] = []
-    changed = False
-    for raw, cap in FLEET_PATENTES:
-        patente = normalize_patente(raw)
-        if not patente:
+    updated: list[str] = []
+    removed: list[str] = []
+
+    for unit in OFFICIAL_FLEET:
+        key = fleet_storage_key(unit.patente)
+        current = existing.get(key)
+        fields = {
+            "patente": unit.patente,
+            "alias": unit.alias,
+            "dominio_pressa": unit.dominio_pressa,
+            "tipo": unit.tipo,
+            "capacidad_tanque": unit.capacidad_tanque,
+            "unidad_medida": unit.unidad_medida,
+            "unidad_consumo": consumo_de_medida(unit.unidad_medida),
+        }
+        if current is None:
+            db.add(Vehicle(**fields, modelo=unit.modelo))
+            added.append(unit.patente)
             continue
-        current = existing.get(patente)
-        if current is not None:
-            if current.patente != patente:
-                current.patente = patente
+        changed = False
+        for name, value in fields.items():
+            if getattr(current, name) != value:
+                setattr(current, name, value)
                 changed = True
-            continue
-        db.add(Vehicle(patente=patente, capacidad_tanque=cap))
-        added.append(patente)
-    if added or changed:
+        if unit.modelo is not None and current.modelo != unit.modelo:
+            current.modelo = unit.modelo
+            changed = True
+        if changed:
+            updated.append(unit.patente)
+
+    for key, vehicle in existing.items():
+        if key not in official_keys:
+            removed.append(vehicle.patente)
+            db.delete(vehicle)
+
+    if added or updated or removed:
         db.commit()
-        if added:
-            logger.info("Flota: agregadas %d patente(s) nueva(s): %s", len(added), ", ".join(added))
-    return added
-
-
-def seed_demo_vehicles_if_configured(db: Session) -> None:
-    settings = get_settings()
-    if not settings.seed_demo_vehicles_if_empty:
-        return
-    count = db.scalar(select(func.count()).select_from(Vehicle))
-    if count and count > 0:
-        return
-    for patente, cap in _DEMO_FLEET:
-        db.add(Vehicle(patente=patente, capacidad_tanque=cap))
-    db.commit()
-    logger.info("Semilla: insertados %d vehículos demo (FUEL_OPS_SEED_VEHICLES).", len(_DEMO_FLEET))
+        logger.info(
+            "Flota oficial: +%s ~%s -%s",
+            ", ".join(added) or "—",
+            ", ".join(updated) or "—",
+            ", ".join(removed) or "—",
+        )
+    return FleetSync(added=added, updated=updated, removed=removed)

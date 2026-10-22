@@ -42,7 +42,16 @@ export function etiquetaTipoVehiculo(tipo: string | null | undefined, modelo?: s
   return (modelo ?? "").trim();
 }
 
+export const UNIDAD_MEDIDA_OPTIONS = [
+  { value: "KM", label: "Kilómetros" },
+  { value: "HORAS", label: "Horas de motor" },
+] as const;
+
 export const UNIDAD_CONSUMO_OPTIONS = [
   { value: "l_100km", label: "L / 100 km" },
   { value: "l_hora", label: "L / hora motor" },
 ] as const;
+
+export function unidadMedidaDeConsumo(unidad: string | null | undefined): "KM" | "HORAS" {
+  return unidad === "l_hora" || unidad === "HORAS" ? "HORAS" : "KM";
+}

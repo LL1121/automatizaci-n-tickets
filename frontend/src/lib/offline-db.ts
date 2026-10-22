@@ -23,6 +23,8 @@ export interface PendingTicketRecord {
   legajoConductor?: string;
   nombreConductor?: string;
   tipoActividad?: string;
+  /** Horómetro cargado a mano. Las fotos viejas no lo tienen. */
+  kmOHoras?: number;
 }
 
 interface FuelOpsDB extends DBSchema {
@@ -34,7 +36,7 @@ interface FuelOpsDB extends DBSchema {
 }
 
 const DB_NAME = "fuelops-field";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export async function openOfflineDB(): Promise<IDBPDatabase<FuelOpsDB>> {
   return openDB<FuelOpsDB>(DB_NAME, DB_VERSION, {
@@ -45,6 +47,7 @@ export async function openOfflineDB(): Promise<IDBPDatabase<FuelOpsDB>> {
       } else if (oldVersion < 3) {
         // v3: legajoConductor, nombreConductor, tipoActividad — opcionales en registros viejos
       }
+      // v4: kmOHoras opcional en registros viejos
     },
   });
 }
