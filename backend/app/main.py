@@ -18,8 +18,17 @@ from app.api.routes.upload import router as upload_router
 from app.api.routes.vehicles import router as vehicles_router
 from app.db.schema_migrations import apply_schema_migrations
 from app.db.session import get_engine, get_session_factory, verify_database_connection
-from app.models import AdminUser, Base, FieldDevice, Ticket, Vehicle  # noqa: F401 - registro de metadatos SQLAlchemy
+from app.models import (  # noqa: F401 - registro de metadatos SQLAlchemy
+    AdminUser,
+    Base,
+    FieldDevice,
+    TelemetrySnapshot,
+    Ticket,
+    Vehicle,
+    YpfMovement,
+)
 from app.api.routes.operators import router as operators_router
+from app.api.routes.telemetry import router as telemetry_router
 from app.services.admin_users import bootstrap_admin_from_env
 from app.services.seed_vehicles import ensure_fleet_vehicles
 
@@ -153,6 +162,7 @@ app.include_router(vehicles_router)
 app.include_router(operators_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_router)
+app.include_router(telemetry_router)
 
 
 @app.get("/health")

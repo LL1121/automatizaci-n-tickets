@@ -12,6 +12,7 @@ export type VehicleDTO = {
   capacidad_tanque: number | null;
   tipo: string | null;
   modelo: string | null;
+  unidad_medida?: string | null;
 };
 
 type Grupo = "vehiculos" | "maquinas";
@@ -52,7 +53,7 @@ export function VehicleSelector({ onSelected }: Props) {
   const visibles = grupo === "maquinas" ? maquinas : vehiculos;
 
   const pick = (v: VehicleDTO) => {
-    setVehicle(v.id, v.patente);
+    setVehicle(v.id, v.patente, v.unidad_medida);
     onSelected();
   };
 

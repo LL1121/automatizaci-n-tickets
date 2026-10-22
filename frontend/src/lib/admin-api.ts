@@ -31,6 +31,12 @@ export type AdminTicketRow = {
   vehicle_id: number | null;
   patente: string | null;
   vehicle_tipo: string | null;
+  vehicle_unidad_medida: string | null;
+  match_ypf_ruta: boolean;
+  discrepancia_litros: boolean;
+  ypf_litros: number | null;
+  alerta_tanque: boolean;
+  alerta_telemetria: boolean;
 };
 
 export type AdminSummary = {
@@ -229,6 +235,24 @@ export async function fetchAdminVehicleStats(year: number, month: number): Promi
   return res.json() as Promise<{ vehicles: VehicleStat[] }>;
 }
 
+export type YpfReconcileSummary = {
+  total_ypf: number;
+  conciliados: number;
+  sin_ticket: number;
+  discrepancias: number;
+};
+
+export async function uploadYpfReport(file: File): Promise<YpfReconcileSummary> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await adminFetch(`${getApiBase()}/admin/reconciliar/ypf`, {
+    method: "POST",
+    body,
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return (await res.json()) as YpfReconcileSummary;
+}
+
 export async function fetchAdminTickets(params: {
   from: string;
   to: string;
@@ -237,6 +261,7 @@ export async function fetchAdminTickets(params: {
   limit?: number;
   offset?: number;
   inconsistencias?: boolean;
+  ypf?: "conciliado" | "pendiente" | "discrepancia";
 }): Promise<{ total: number; items: AdminTicketRow[] }> {
   const q = new URLSearchParams({
     from_date: params.from,
@@ -247,6 +272,7 @@ export async function fetchAdminTickets(params: {
     offset: String(params.offset ?? 0),
   });
   if (params.inconsistencias) q.set("inconsistencias", "true");
+  if (params.ypf) q.set("ypf", params.ypf);
   const res = await adminFetch(`${getApiBase()}/admin/tickets?${q}`);
   if (!res.ok) throw new Error(`tickets ${res.status}`);
   return res.json() as Promise<{ total: number; items: AdminTicketRow[] }>;
@@ -288,6 +314,7 @@ export type AdminVehicleRow = {
   tipo: string | null;
   modelo: string | null;
   consumo_esperado: number | null;
+  unidad_medida: string;
   unidad_consumo: string;
   umbral_desvio: number;
 };
@@ -304,6 +331,7 @@ export async function patchAdminVehicle(
     tipo: string | null;
     modelo: string | null;
     consumo_esperado: number | null;
+    unidad_medida: string | null;
     unidad_consumo: string | null;
     umbral_desvio: number | null;
     capacidad_tanque: number | null;

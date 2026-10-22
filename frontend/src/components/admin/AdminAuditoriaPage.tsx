@@ -4,15 +4,52 @@ import { AdminTicketPanel } from "@/components/admin/AdminTicketPanel";
 import {
   type AdminTicketRow,
   type AdminVehicleRow,
+  type YpfReconcileSummary,
   exportPlanillaOficialUrl,
   fetchAdminTickets,
   listAdminVehicles,
   monthUtcIsoRange,
   patchAdminVehicle,
+  uploadYpfReport,
 } from "@/lib/admin-api";
-import { UNIDAD_CONSUMO_OPTIONS, VEHICLE_TIPO_OPTIONS, nombrePlanilla } from "@/lib/circular";
+import { UNIDAD_MEDIDA_OPTIONS, VEHICLE_TIPO_OPTIONS, nombrePlanilla, unidadMedidaDeConsumo } from "@/lib/circular";
 import { useAdminAuth } from "@/store/useAdminAuth";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type FiltroYpf = "inconsistencias" | "todos" | "conciliado" | "pendiente" | "discrepancia";
+
+function YpfBadge({ row }: { row: AdminTicketRow }) {
+  if (row.discrepancia_litros) {
+    const diferencia =
+      row.litros != null && row.ypf_litros != null ? Math.abs(row.litros - row.ypf_litros) : null;
+    const title =
+      diferencia != null
+        ? `El ticket tiene ${row.litros?.toLocaleString("es-AR")} L y YPF ${row.ypf_litros?.toLocaleString("es-AR")} L (diferencia ${diferencia.toLocaleString("es-AR")} L).`
+        : "Los litros del ticket no coinciden con YPF.";
+    return (
+      <span
+        title={title}
+        className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+      >
+        Discrepancia en litros
+      </span>
+    );
+  }
+  if (row.match_ypf_ruta) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-status-verifiedBg px-2.5 py-0.5 text-xs font-medium text-status-verifiedText">
+        <Check className="h-3.5 w-3.5" aria-hidden />
+        Conciliado con YPF
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+      Pendiente de YPF
+    </span>
+  );
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -40,6 +77,11 @@ export function AdminAuditoriaPage() {
   const [vehicles, setVehicles] = useState<AdminVehicleRow[]>([]);
   const [fleetBusy, setFleetBusy] = useState<number | null>(null);
   const [fleetMsg, setFleetMsg] = useState<string | null>(null);
+  const [filtroYpf, setFiltroYpf] = useState<FiltroYpf>("inconsistencias");
+  const [ypfBusy, setYpfBusy] = useState(false);
+  const [ypfResumen, setYpfResumen] = useState<YpfReconcileSummary | null>(null);
+  const [ypfErr, setYpfErr] = useState<string | null>(null);
+  const ypfInputRef = useRef<HTMLInputElement>(null);
   const token = useAdminAuth((s) => s.token);
 
   const load = useCallback(async () => {
@@ -54,7 +96,11 @@ export function AdminAuditoriaPage() {
           sortBy: "fecha",
           sortOrder: "desc",
           limit: 200,
-          inconsistencias: true,
+          inconsistencias: filtroYpf === "inconsistencias",
+          ypf:
+            filtroYpf === "conciliado" || filtroYpf === "pendiente" || filtroYpf === "discrepancia"
+              ? filtroYpf
+              : undefined,
         }),
         listAdminVehicles(),
       ]);
@@ -66,7 +112,23 @@ export function AdminAuditoriaPage() {
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [year, month, filtroYpf]);
+
+  const onYpfFile = async (file: File | undefined) => {
+    if (!file) return;
+    setYpfBusy(true);
+    setYpfErr(null);
+    try {
+      const summary = await uploadYpfReport(file);
+      setYpfResumen(summary);
+      await load();
+    } catch (e) {
+      setYpfErr(e instanceof Error ? e.message : "No se pudo conciliar el PDF.");
+    } finally {
+      setYpfBusy(false);
+      if (ypfInputRef.current) ypfInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -128,17 +190,55 @@ export function AdminAuditoriaPage() {
           >
             Descargar planilla oficial
           </a>
+          <input
+            ref={ypfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => void onYpfFile(e.target.files?.[0])}
+          />
+          <button
+            type="button"
+            className="btn-secondary !min-h-0 px-4 py-2 text-sm"
+            disabled={ypfBusy}
+            onClick={() => ypfInputRef.current?.click()}
+          >
+            {ypfBusy ? "Conciliando…" : "Cargar reporte YPF en Ruta (PDF)"}
+          </button>
         </div>
       </div>
+
+      {ypfResumen ? (
+        <p className="rounded-lg bg-brand-light px-4 py-3 text-sm text-brand">
+          Total registros YPF: {ypfResumen.total_ypf} | Conciliados con éxito: {ypfResumen.conciliados} |
+          Sin ticket físico respaldado: {ypfResumen.sin_ticket}
+          {ypfResumen.discrepancias > 0 ? ` | Discrepancias de litros: ${ypfResumen.discrepancias}` : ""}
+        </p>
+      ) : null}
+      {ypfErr ? <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{ypfErr}</p> : null}
 
       {err ? <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{err}</p> : null}
       {fleetMsg ? <p className="text-sm text-brand">{fleetMsg}</p> : null}
 
       <section className="card overflow-hidden">
-        <div className="border-b border-field-border bg-field-surface px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-field-border bg-field-surface px-5 py-3">
           <h2 className="font-semibold text-field-text">
-            Inconsistencias ({loading ? "…" : total})
+            {filtroYpf === "inconsistencias" ? "Inconsistencias" : "Tickets"} ({loading ? "…" : total})
           </h2>
+          <label className="text-sm text-field-muted">
+            Estado YPF
+            <select
+              className="input-field !min-h-0 ml-2 py-1.5 text-sm"
+              value={filtroYpf}
+              onChange={(e) => setFiltroYpf(e.target.value as FiltroYpf)}
+            >
+              <option value="inconsistencias">Inconsistencias</option>
+              <option value="todos">Todos</option>
+              <option value="conciliado">Solo conciliados</option>
+              <option value="pendiente">Sin conciliar</option>
+              <option value="discrepancia">Discrepancias</option>
+            </select>
+          </label>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -148,14 +248,15 @@ export function AdminAuditoriaPage() {
                 <th className="px-4 py-3">Patente</th>
                 <th className="px-4 py-3">Conductor</th>
                 <th className="px-4 py-3">Litros</th>
+                <th className="px-4 py-3">YPF</th>
                 <th className="px-4 py-3">Alertas</th>
               </tr>
             </thead>
             <tbody>
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-field-muted">
-                    Sin inconsistencias en el período.
+                  <td colSpan={6} className="px-4 py-8 text-center text-field-muted">
+                    Sin tickets para este filtro en el período.
                   </td>
                 </tr>
               ) : null}
@@ -178,6 +279,21 @@ export function AdminAuditoriaPage() {
                   </td>
                   <td className="px-4 py-3 tabular-nums">
                     {row.litros != null ? row.litros.toLocaleString("es-AR") : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      <YpfBadge row={row} />
+                      {row.alerta_tanque ? (
+                        <span className="rounded-full bg-status-lateBg px-2.5 py-0.5 text-xs font-medium text-status-lateText">
+                          Volumen cargado supera la capacidad máxima del tanque físico
+                        </span>
+                      ) : null}
+                      {row.alerta_telemetria ? (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                          La lectura no cierra con el odómetro o el horómetro
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
@@ -204,7 +320,7 @@ export function AdminAuditoriaPage() {
         <div className="border-b border-field-border bg-field-surface px-5 py-3">
           <h2 className="font-semibold text-field-text">Flota — consumo esperado</h2>
           <p className="text-xs text-field-muted">
-            Parametrizá L/100 km o L/hora y el umbral de desvío (ej. 0.15 = 15%).
+            En kilómetros el consumo esperado es L/100 km. En horas de motor, L/hora. El umbral de desvío sigue en 0,15 (15%).
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -240,7 +356,12 @@ export function AdminAuditoriaPage() {
           onClose={() => setSelected(null)}
           onSaved={(row) => {
             setItems((prev) => {
-              const stillBad = row.rendicion_tardia || row.desvio_detectado;
+              const stillBad =
+                filtroYpf !== "inconsistencias" ||
+                row.rendicion_tardia ||
+                row.desvio_detectado ||
+                row.alerta_tanque ||
+                row.alerta_telemetria;
               if (!stillBad) return prev.filter((x) => x.id !== row.id);
               return prev.map((x) => (x.id === row.id ? row : x));
             });
@@ -266,14 +387,16 @@ function VehicleFleetRow({
   const [consumo, setConsumo] = useState(
     vehicle.consumo_esperado != null ? String(vehicle.consumo_esperado) : "",
   );
-  const [unidad, setUnidad] = useState(vehicle.unidad_consumo || "l_100km");
+  const [unidad, setUnidad] = useState(
+    vehicle.unidad_medida || unidadMedidaDeConsumo(vehicle.unidad_consumo),
+  );
   const [umbral, setUmbral] = useState(String(vehicle.umbral_desvio ?? 0.15));
 
   useEffect(() => {
     setTipo(vehicle.tipo ?? "");
     setModelo(vehicle.modelo ?? "");
     setConsumo(vehicle.consumo_esperado != null ? String(vehicle.consumo_esperado) : "");
-    setUnidad(vehicle.unidad_consumo || "l_100km");
+    setUnidad(vehicle.unidad_medida || unidadMedidaDeConsumo(vehicle.unidad_consumo));
     setUmbral(String(vehicle.umbral_desvio ?? 0.15));
   }, [vehicle]);
 
@@ -317,7 +440,7 @@ function VehicleFleetRow({
           value={unidad}
           onChange={(e) => setUnidad(e.target.value)}
         >
-          {UNIDAD_CONSUMO_OPTIONS.map((o) => (
+          {UNIDAD_MEDIDA_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -345,7 +468,7 @@ function VehicleFleetRow({
               tipo: tipo || null,
               modelo: modelo.trim() || null,
               consumo_esperado: consumo.trim() === "" ? null : Number(consumo.replace(",", ".")),
-              unidad_consumo: unidad,
+              unidad_medida: unidad,
               umbral_desvio: Number(umbral.replace(",", ".")),
             })
           }

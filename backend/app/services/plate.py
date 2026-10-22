@@ -19,6 +19,9 @@ def format_patente_display(raw: str | None) -> str:
         return f"{n[:2]}-{n[2:5]}-{n[5:]}"
     if re.fullmatch(r"[A-Z]{3}\d{3}", n):
         return f"{n[:3]} {n[3:]}"
+    raw_up = raw.strip().upper()
+    if "-" in raw_up:
+        return raw_up
     return n
 
 

@@ -10,7 +10,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
-from app.models.vehicle import Vehicle
+from app.models.vehicle import Vehicle, es_unidad_horas
 
 
 def business_hours_between(start: datetime, end: datetime) -> float:
@@ -107,10 +107,13 @@ def compute_desvio(
     lectura_inicio: float | None,
     consumo_esperado: float | None,
     unidad_consumo: str | None,
+    unidad_medida: str | None = None,
     umbral_desvio: float = 0.15,
 ) -> tuple[bool, float | None]:
     """
     Compara consumo real vs esperado.
+    HORAS: litros / delta de horómetro (L/hora).
+    KM: litros / delta * 100 (L/100 km).
     Devuelve (desvio_detectado, desvio_pct) donde desvio_pct es
     (real - esperado) / esperado (ej. 0.20 = 20% por encima).
     """
@@ -128,11 +131,9 @@ def compute_desvio(
     if delta <= 0:
         return False, None
 
-    unidad = (unidad_consumo or "l_100km").strip().lower()
-    if unidad == "l_hora":
+    if es_unidad_horas(unidad_medida, unidad_consumo):
         real = litros / delta
     else:
-        # l_100km
         real = (litros / delta) * 100.0
 
     ratio = (real - consumo_esperado) / consumo_esperado
@@ -171,6 +172,7 @@ def apply_ticket_flags(db: Session, ticket: Ticket, vehicle: Vehicle | None = No
         lectura_inicio=inicio,
         consumo_esperado=veh.consumo_esperado,
         unidad_consumo=veh.unidad_consumo,
+        unidad_medida=veh.unidad_medida,
         umbral_desvio=float(veh.umbral_desvio if veh.umbral_desvio is not None else 0.15),
     )
     ticket.desvio_detectado = desvio

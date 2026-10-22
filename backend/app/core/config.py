@@ -37,10 +37,12 @@ class Settings(BaseSettings):
         description="Modelo con visión. gemini-2.0-flash-lite fue dado de baja.",
     )
     seed_demo_vehicles_if_empty: bool = Field(
-        default=True,
+        default=False,
         alias="FUEL_OPS_SEED_VEHICLES",
-        description="Si no hay vehículos en DB, insertar filas demo para operadores de campo.",
+        description="El padrón demo ya no se inserta. El arranque deja las 9 unidades de Malargüe.",
     )
+    pressa_username: str = Field(default="", alias="PRESSA_USERNAME")
+    pressa_password: str = Field(default="", alias="PRESSA_PASSWORD")
     cors_origins: str = Field(
         default="",
         alias="CORS_ORIGINS",

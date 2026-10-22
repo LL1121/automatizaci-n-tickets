@@ -84,6 +84,52 @@ def apply_schema_migrations(engine: Engine) -> None:
                 "desvio_detectado BOOLEAN NOT NULL DEFAULT FALSE",
             )
             _add_column_if_missing(conn, "tickets", col_names, "desvio_pct", "desvio_pct FLOAT")
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "ypf_movement_id",
+                "ypf_movement_id INTEGER REFERENCES ypf_movements(id) ON DELETE SET NULL",
+            )
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_tickets_ypf_movement_id ON tickets (ypf_movement_id)")
+            )
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "match_ypf_ruta",
+                "match_ypf_ruta BOOLEAN NOT NULL DEFAULT FALSE",
+            )
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "discrepancia_litros",
+                "discrepancia_litros BOOLEAN NOT NULL DEFAULT FALSE",
+            )
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "precio_unitario",
+                "precio_unitario NUMERIC(10, 2)",
+            )
+            _add_column_if_missing(conn, "tickets", col_names, "nro_factura", "nro_factura VARCHAR(50)")
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "alerta_tanque",
+                "alerta_tanque BOOLEAN NOT NULL DEFAULT FALSE",
+            )
+            _add_column_if_missing(
+                conn,
+                "tickets",
+                col_names,
+                "alerta_telemetria",
+                "alerta_telemetria BOOLEAN NOT NULL DEFAULT FALSE",
+            )
 
         if "vehicles" in table_names:
             vcols = {c["name"] for c in insp.get_columns("vehicles")}
@@ -104,6 +150,63 @@ def apply_schema_migrations(engine: Engine) -> None:
                 "umbral_desvio",
                 "umbral_desvio FLOAT NOT NULL DEFAULT 0.15",
             )
+            medida_nueva = "unidad_medida" not in vcols
+            _add_column_if_missing(
+                conn,
+                "vehicles",
+                vcols,
+                "unidad_medida",
+                "unidad_medida VARCHAR(8) NOT NULL DEFAULT 'KM'",
+            )
+            if medida_nueva:
+                conn.execute(
+                    text(
+                        """
+                        UPDATE vehicles
+                        SET unidad_medida = 'HORAS'
+                        WHERE lower(coalesce(unidad_consumo, '')) = 'l_hora'
+                        """
+                    )
+                )
+            _add_column_if_missing(conn, "vehicles", vcols, "alias", "alias VARCHAR(80)")
+            _add_column_if_missing(
+                conn,
+                "vehicles",
+                vcols,
+                "dominio_pressa",
+                "dominio_pressa VARCHAR(40)",
+            )
+
+        if "telemetry_snapshots" not in table_names:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE telemetry_snapshots (
+                        id SERIAL PRIMARY KEY,
+                        vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                        recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                        odometer_km INTEGER,
+                        engine_hours FLOAT,
+                        liters FLOAT,
+                        lat FLOAT,
+                        lng FLOAT,
+                        event_description VARCHAR(160),
+                        event_timestamp VARCHAR(40)
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX ix_telemetry_snapshots_vehicle_id ON telemetry_snapshots (vehicle_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX ix_telemetry_snapshots_recorded_at ON telemetry_snapshots (recorded_at)"
+                )
+            )
+            logger.info("Migración: tabla telemetry_snapshots creada")
 
         if "field_devices" not in table_names:
             conn.execute(

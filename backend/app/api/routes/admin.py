@@ -27,7 +27,15 @@ from app.core.security import AuthConfigError, create_admin_token, verify_passwo
 from app.db.session import get_db
 from app.models.admin_user import AdminUser
 from app.models.ticket import Ticket
-from app.models.vehicle import UNIDADES_CONSUMO, VEHICLE_TIPOS, Vehicle
+from app.models.ypf import YpfMovement
+from app.models.vehicle import (
+    UNIDADES_CONSUMO,
+    UNIDADES_MEDIDA,
+    VEHICLE_TIPOS,
+    Vehicle,
+    consumo_de_medida,
+    medida_de_consumo,
+)
 from app.services import admin_users as admin_users_service
 from app.services.admin_users import AdminUserError
 from app.services.admin_stats import (
@@ -41,6 +49,8 @@ from app.services.admin_stats import (
 )
 from app.services.consumption import apply_ticket_flags, reading_value, sync_km_o_horas_from_kilometraje
 from app.services.plate import format_patente_display
+from app.services.reconciliation import YpfParseError, reconcile_ypf_pdf
+from app.services.telemetry import refresh_telemetry_quietly
 from app.services.image_segmentation import (
     decode_image_bytes,
     encode_image_jpeg,
@@ -311,6 +321,12 @@ def _ticket_row_dict(r: dict) -> dict[str, Any]:
         "vehicle_id": r["vehicle_id"],
         "patente": r["patente"],
         "vehicle_tipo": r.get("vehicle_tipo"),
+        "vehicle_unidad_medida": r.get("vehicle_unidad_medida") or "KM",
+        "match_ypf_ruta": bool(r.get("match_ypf_ruta") or False),
+        "discrepancia_litros": bool(r.get("discrepancia_litros") or False),
+        "ypf_litros": float(r["ypf_litros"]) if r.get("ypf_litros") is not None else None,
+        "alerta_tanque": bool(r.get("alerta_tanque") or False),
+        "alerta_telemetria": bool(r.get("alerta_telemetria") or False),
     }
 
 
@@ -364,6 +380,26 @@ def admin_stats_vehicles(
     }
 
 
+@router.post("/reconciliar/ypf")
+async def admin_reconciliar_ypf(
+    _: AdminPrincipal,
+    file: UploadFile = File(..., description="PDF del reporte YPF en Ruta"),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El PDF está vacío.")
+    content_type = (file.content_type or "").lower()
+    name = (file.filename or "").lower()
+    if content_type not in {"application/pdf", "application/octet-stream"} and not name.endswith(".pdf"):
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Subí el reporte en PDF.")
+    await refresh_telemetry_quietly(db)
+    try:
+        return reconcile_ypf_pdf(db, raw)
+    except YpfParseError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
 @router.get("/tickets")
 def admin_list_tickets(
     _: AdminPrincipal,
@@ -375,6 +411,7 @@ def admin_list_tickets(
     max_confidence: Annotated[float | None, Query(ge=0, le=1)] = None,
     is_verified: Annotated[bool | None, Query()] = None,
     inconsistencias: Annotated[bool, Query()] = False,
+    ypf: Annotated[str | None, Query()] = None,
     sort_by: SORT_COLUMNS = "ingested_at",
     sort_order: SORT_ORDER = "desc",
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
@@ -391,6 +428,7 @@ def admin_list_tickets(
         max_confidence=max_confidence,
         is_verified=is_verified,
         inconsistencias_only=inconsistencias,
+        ypf_estado=ypf,
     )
     total = db.scalar(count_tickets_filtered(
         from_date=fd,
@@ -400,6 +438,7 @@ def admin_list_tickets(
         max_confidence=max_confidence,
         is_verified=is_verified,
         inconsistencias_only=inconsistencias,
+        ypf_estado=ypf,
     ))
     if total is None:
         total = 0
@@ -457,9 +496,16 @@ def admin_get_ticket(
             Ticket.vehicle_id,
             Vehicle.patente,
             Vehicle.tipo.label("vehicle_tipo"),
+            Vehicle.unidad_medida.label("vehicle_unidad_medida"),
+            Ticket.match_ypf_ruta,
+            Ticket.discrepancia_litros,
+            Ticket.alerta_tanque,
+            Ticket.alerta_telemetria,
+            YpfMovement.litros.label("ypf_litros"),
         )
         .select_from(Ticket)
         .outerjoin(Vehicle, Vehicle.id == Ticket.vehicle_id)
+        .outerjoin(YpfMovement, YpfMovement.id == Ticket.ypf_movement_id)
         .where(Ticket.id == ticket_id),
     ).mappings().one_or_none()
     if row is None:
@@ -724,6 +770,7 @@ class VehicleUpdateBody(BaseModel):
     tipo: str | None = None
     modelo: str | None = None
     consumo_esperado: float | None = None
+    unidad_medida: str | None = None
     unidad_consumo: str | None = None
     umbral_desvio: float | None = Field(default=None, ge=0, le=2)
     capacidad_tanque: float | None = None
@@ -737,7 +784,8 @@ def _vehicle_dict(v: Vehicle) -> dict[str, Any]:
         "tipo": v.tipo,
         "modelo": v.modelo,
         "consumo_esperado": v.consumo_esperado,
-        "unidad_consumo": v.unidad_consumo or "l_100km",
+        "unidad_medida": v.unidad_medida or medida_de_consumo(v.unidad_consumo),
+        "unidad_consumo": v.unidad_consumo or consumo_de_medida(v.unidad_medida),
         "umbral_desvio": float(v.umbral_desvio if v.umbral_desvio is not None else 0.15),
     }
 
@@ -773,7 +821,7 @@ def admin_patch_vehicle(
         v.modelo = None if m is None else str(m).strip()[:64] or None
     if "consumo_esperado" in updates:
         v.consumo_esperado = updates["consumo_esperado"]
-    if "unidad_consumo" in updates:
+    if "unidad_consumo" in updates and "unidad_medida" not in updates:
         u = updates["unidad_consumo"]
         if u is None or str(u).strip() == "":
             v.unidad_consumo = "l_100km"
@@ -782,6 +830,13 @@ def admin_patch_vehicle(
             if u not in UNIDADES_CONSUMO:
                 raise HTTPException(status_code=422, detail="unidad_consumo inválida.")
             v.unidad_consumo = u
+        v.unidad_medida = medida_de_consumo(v.unidad_consumo)
+    if "unidad_medida" in updates:
+        medida = str(updates["unidad_medida"] or "KM").strip().upper()
+        if medida not in UNIDADES_MEDIDA:
+            raise HTTPException(status_code=422, detail="unidad_medida inválida.")
+        v.unidad_medida = medida
+        v.unidad_consumo = consumo_de_medida(medida)
     if "umbral_desvio" in updates and updates["umbral_desvio"] is not None:
         v.umbral_desvio = float(updates["umbral_desvio"])
     if "capacidad_tanque" in updates:
@@ -939,6 +994,7 @@ async def admin_upload_batch(
         )
 
     operator_name = f"Carga admin · {principal.username}"
+    await refresh_telemetry_quietly(db)
     results: list[BatchTicketResult] = []
 
     for f in files:

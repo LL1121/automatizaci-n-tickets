@@ -1,5 +1,5 @@
 """
-Alta manual de patentes de la flota (idempotente).
+Alta del padrón oficial (idempotente).
 
 Uso local:
   cd backend && python -m app.cli.ensure_fleet
@@ -15,7 +15,7 @@ import logging
 import sys
 
 from app.db.session import get_session_factory, verify_database_connection
-from app.services.seed_vehicles import FLEET_PATENTES, ensure_fleet_vehicles
+from app.services.seed_vehicles import OFFICIAL_FLEET, ensure_fleet_vehicles
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def main() -> int:
     verify_database_connection()
     db = get_session_factory()()
     try:
-        added = ensure_fleet_vehicles(db)
+        sync = ensure_fleet_vehicles(db)
     except Exception:
         db.rollback()
         logger.exception("Error al registrar patentes")
@@ -33,18 +33,24 @@ def main() -> int:
     finally:
         db.close()
 
-    if added:
+    if sync.added:
         print("Patentes agregadas:")
-        for p in added:
-            print(f"  + {p}")
-    else:
-        print("Sin cambios: todas las patentes de la flota ya estaban en la base.")
+        for patente in sync.added:
+            print(f"  + {patente}")
+    if sync.updated:
+        print("Patentes actualizadas:")
+        for patente in sync.updated:
+            print(f"  ~ {patente}")
+    if sync.removed:
+        print("Patentes fuera del padrón (tickets conservados):")
+        for patente in sync.removed:
+            print(f"  - {patente}")
+    if not sync.added and not sync.updated and not sync.removed:
+        print("Sin cambios: el padrón oficial ya estaba en la base.")
 
-    print("\nFlota configurada en el script:")
-    for patente, cap in FLEET_PATENTES:
-        mark = " (nueva)" if patente in added else ""
-        cap_txt = f"{cap} L" if cap is not None else "sin capacidad"
-        print(f"  · {patente} — {cap_txt}{mark}")
+    print("\nFlota oficial:")
+    for unit in OFFICIAL_FLEET:
+        print(f"  · {unit.patente} — {unit.alias} — {unit.capacidad_tanque:g} L — {unit.unidad_medida}")
 
     return 0
 

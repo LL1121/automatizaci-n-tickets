@@ -30,6 +30,7 @@ from app.services.ai_engine import (
     extract_ticket_from_image,
 )
 from app.services.consumption import apply_ticket_flags, sync_km_o_horas_from_kilometraje
+from app.services.telemetry import apply_telemetry_flags
 from app.services.image_preprocess import ImagePreprocessError, preprocess_for_vision
 from app.services.plate import format_patente_display, normalize_patente, patentes_coinciden
 
@@ -154,6 +155,7 @@ def ingest_ticket_image(
     legajo_conductor: str | None = None,
     nombre_conductor: str | None = None,
     tipo_actividad: str | None = None,
+    km_o_horas: float | None = None,
 ) -> IngestOutcome:
     """Procesa una imagen y la persiste como ticket; devuelve outcome con detalle."""
     settings = get_settings()
@@ -267,8 +269,11 @@ def ingest_ticket_image(
         monto=Decimal(str(extracted.monto)) if extracted.monto is not None else None,
         ingested_at=datetime.now(timezone.utc),
     )
+    if km_o_horas is not None:
+        ticket.km_o_horas = Decimal(str(km_o_horas))
     sync_km_o_horas_from_kilometraje(ticket)
     apply_ticket_flags(db, ticket)
+    apply_telemetry_flags(db, ticket)
     db.add(ticket)
     try:
         db.commit()

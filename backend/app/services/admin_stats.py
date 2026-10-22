@@ -12,7 +12,8 @@ from sqlalchemy import Select, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.ticket import Ticket
-from app.models.vehicle import Vehicle
+from app.models.vehicle import Vehicle, es_unidad_horas
+from app.models.ypf import YpfMovement
 from app.services.consumption import previous_ticket_reading, reading_value
 
 
@@ -67,7 +68,7 @@ def kilometers_traveled_in_month(db: Session, period: MonthPeriod) -> int:
 
     Cada ticket trae el km del vehículo en ese momento. El recorrido de esa carga
     es la diferencia con la lectura anterior del mismo vehículo. Sin lectura previa,
-    o si el contador bajó, esa carga no suma. Las unidades en horas (l_hora) quedan afuera.
+    o si el contador bajó, esa carga no suma. Las máquinas en horas quedan afuera.
     """
     eff = effective_ticket_datetime()
     tickets = db.scalars(
@@ -92,7 +93,7 @@ def kilometers_traveled_in_month(db: Session, period: MonthPeriod) -> int:
         if ticket.vehicle_id is None:
             continue
         veh = vehicles.get(ticket.vehicle_id)
-        if veh is not None and (veh.unidad_consumo or "").strip().lower() == "l_hora":
+        if veh is not None and es_unidad_horas(veh.unidad_medida, veh.unidad_consumo):
             continue
         current = reading_value(ticket)
         if current is None:
@@ -168,6 +169,7 @@ def tickets_query_filtered(
     max_confidence: float | None,
     is_verified: bool | None,
     inconsistencias_only: bool = False,
+    ypf_estado: str | None = None,
 ) -> Select[Any]:
     eff = effective_ticket_datetime()
     q = (
@@ -198,9 +200,16 @@ def tickets_query_filtered(
             Ticket.vehicle_id,
             Vehicle.patente,
             Vehicle.tipo.label("vehicle_tipo"),
+            Vehicle.unidad_medida.label("vehicle_unidad_medida"),
+            Ticket.match_ypf_ruta,
+            Ticket.discrepancia_litros,
+            Ticket.alerta_tanque,
+            Ticket.alerta_telemetria,
+            YpfMovement.litros.label("ypf_litros"),
         )
         .select_from(Ticket)
         .outerjoin(Vehicle, Vehicle.id == Ticket.vehicle_id)
+        .outerjoin(YpfMovement, YpfMovement.id == Ticket.ypf_movement_id)
     )
     conds: list[Any] = []
     if from_date is not None:
@@ -216,7 +225,20 @@ def tickets_query_filtered(
     if is_verified is not None:
         conds.append(Ticket.is_verified.is_(is_verified))
     if inconsistencias_only:
-        conds.append(or_(Ticket.rendicion_tardia.is_(True), Ticket.desvio_detectado.is_(True)))
+        conds.append(
+            or_(
+                Ticket.rendicion_tardia.is_(True),
+                Ticket.desvio_detectado.is_(True),
+                Ticket.alerta_tanque.is_(True),
+                Ticket.alerta_telemetria.is_(True),
+            )
+        )
+    if ypf_estado == "conciliado":
+        conds.append(and_(Ticket.match_ypf_ruta.is_(True), Ticket.discrepancia_litros.is_(False)))
+    elif ypf_estado == "pendiente":
+        conds.append(Ticket.match_ypf_ruta.is_(False))
+    elif ypf_estado == "discrepancia":
+        conds.append(Ticket.discrepancia_litros.is_(True))
     if conds:
         q = q.where(and_(*conds))
     return q
@@ -231,6 +253,7 @@ def count_tickets_filtered(
     max_confidence: float | None,
     is_verified: bool | None,
     inconsistencias_only: bool = False,
+    ypf_estado: str | None = None,
 ) -> Select[Any]:
     base = tickets_query_filtered(
         from_date=from_date,
@@ -240,6 +263,7 @@ def count_tickets_filtered(
         max_confidence=max_confidence,
         is_verified=is_verified,
         inconsistencias_only=inconsistencias_only,
+        ypf_estado=ypf_estado,
     ).subquery()
     return select(func.count()).select_from(base)
 

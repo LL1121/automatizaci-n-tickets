@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.field_device import FieldDevice
 from app.models.vehicle import Vehicle
+from app.services.telemetry import refresh_telemetry_quietly
 from app.services.ticket_ingest import VEHICLE_NOT_FOUND, ingest_ticket_image
 
 router = APIRouter(tags=["ingest"])
@@ -51,6 +52,7 @@ async def upload_ticket(
     legajo_conductor: Annotated[str | None, Form()] = None,
     nombre_conductor: Annotated[str | None, Form()] = None,
     tipo_actividad: Annotated[str | None, Form()] = None,
+    km_o_horas: Annotated[float | None, Form()] = None,
     db: Session = Depends(get_db),
 ) -> dict:
     field_device = _resolve_field_device(db, device_uid)
@@ -65,6 +67,12 @@ async def upload_ticket(
                 detail=VEHICLE_NOT_FOUND,
             )
         vehicle_patente = vehicle.patente
+
+    if km_o_horas is not None and km_o_horas <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El horómetro tiene que ser un número mayor a 0.",
+        )
 
     actividad = " ".join((tipo_actividad or "").split())[:160]
     if not (legajo_conductor or "").strip() or not (nombre_conductor or "").strip() or not actividad:
@@ -84,6 +92,8 @@ async def upload_ticket(
     if len(raw_bytes) == 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Archivo vacío.")
 
+    await refresh_telemetry_quietly(db)
+
     outcome = ingest_ticket_image(
         raw_bytes,
         db=db,
@@ -96,6 +106,7 @@ async def upload_ticket(
         legajo_conductor=legajo_conductor,
         nombre_conductor=nombre_conductor,
         tipo_actividad=actividad,
+        km_o_horas=km_o_horas,
     )
 
     if outcome.status == "created" and outcome.ticket_dict:

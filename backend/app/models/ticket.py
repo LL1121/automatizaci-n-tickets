@@ -51,6 +51,38 @@ class Ticket(Base):
     )
     desvio_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    ypf_movement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ypf_movements.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    match_ypf_ruta: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+    discrepancia_litros: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+    precio_unitario: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    nro_factura: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    alerta_tanque: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+    alerta_telemetria: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=false(),
+        default=False,
+    )
+
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
